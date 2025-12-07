@@ -311,7 +311,7 @@ int main() {
 
 **Supported languages:** python, cpp, c, java, javascript, typescript, go, rust, ruby, php, csharp, kotlin, swift, bash, sql
 
-**Note:** Non-Python languages require a [Judge0 API key](https://rapidapi.com/judge0-official/api/judge0-ce). Add it in `CodeRunner/index.tsx`.
+**Note:** Python runs locally via Pyodide (fast, no network). Other languages use the free public Judge0 CE API.
 
 ### JavaScript/React (Live Codeblock)
 

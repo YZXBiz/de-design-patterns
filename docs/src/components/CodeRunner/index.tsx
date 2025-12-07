@@ -29,9 +29,8 @@ interface CodeRunnerProps {
   stdin?: string;
 }
 
-// Free public Judge0 API (rate limited but works for demos)
-const JUDGE0_API = 'https://judge0-ce.p.rapidapi.com';
-const RAPIDAPI_KEY = ''; // Users should add their own key for production
+// Free public Judge0 CE instance - no API key required!
+const JUDGE0_API = 'https://ce.judge0.com';
 
 export default function CodeRunner({
   code,
@@ -46,56 +45,7 @@ export default function CodeRunner({
 
   const langConfig = LANGUAGES[language];
 
-  const runCode = useCallback(async () => {
-    if (!RAPIDAPI_KEY) {
-      // Fallback: Use Pyodide for Python if no API key
-      if (language === 'python') {
-        runPythonLocally();
-        return;
-      }
-      setError('API key required for this language. See CLAUDE.md for setup.');
-      return;
-    }
-
-    setIsRunning(true);
-    setOutput('');
-    setError('');
-
-    try {
-      // Submit code
-      const submitResponse = await fetch(`${JUDGE0_API}/submissions?base64_encoded=true&wait=true`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-RapidAPI-Key': RAPIDAPI_KEY,
-          'X-RapidAPI-Host': 'judge0-ce.p.rapidapi.com',
-        },
-        body: JSON.stringify({
-          source_code: btoa(editableCode),
-          language_id: langConfig.id,
-          stdin: btoa(stdin),
-        }),
-      });
-
-      const result = await submitResponse.json();
-
-      if (result.stdout) {
-        setOutput(atob(result.stdout));
-      } else if (result.stderr) {
-        setError(atob(result.stderr));
-      } else if (result.compile_output) {
-        setError(atob(result.compile_output));
-      } else if (result.message) {
-        setError(result.message);
-      }
-    } catch (err) {
-      setError(`Execution failed: ${err.message}`);
-    } finally {
-      setIsRunning(false);
-    }
-  }, [editableCode, langConfig, stdin, language]);
-
-  // Local Python execution using Pyodide
+  // Local Python execution using Pyodide (faster, no network)
   const runPythonLocally = useCallback(async () => {
     setIsRunning(true);
     setOutput('');
@@ -104,9 +54,9 @@ export default function CodeRunner({
     try {
       // @ts-ignore
       if (!window.pyodide) {
-        setOutput('Loading Python...');
+        setOutput('Loading Python runtime...');
         // @ts-ignore
-        window.pyodide = await loadPyodide();
+        window.pyodide = await window.loadPyodide();
       }
 
       // @ts-ignore
@@ -126,12 +76,96 @@ sys.stdout = StringIO()
       const stdout = pyodide.runPython('sys.stdout.getvalue()');
       setOutput(stdout || '(No output)');
 
-    } catch (err) {
+    } catch (err: any) {
       setError(err.message);
     } finally {
       setIsRunning(false);
     }
   }, [editableCode]);
+
+  // Remote execution via Judge0 (for all languages)
+  const runCodeRemote = useCallback(async () => {
+    setIsRunning(true);
+    setOutput('');
+    setError('');
+
+    try {
+      // Submit code
+      const submitResponse = await fetch(`${JUDGE0_API}/submissions?base64_encoded=true&wait=false`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          source_code: btoa(unescape(encodeURIComponent(editableCode))),
+          language_id: langConfig.id,
+          stdin: stdin ? btoa(unescape(encodeURIComponent(stdin))) : '',
+        }),
+      });
+
+      if (!submitResponse.ok) {
+        throw new Error(`Server error: ${submitResponse.status}`);
+      }
+
+      const { token } = await submitResponse.json();
+
+      // Poll for result
+      let result;
+      let attempts = 0;
+      const maxAttempts = 30;
+
+      while (attempts < maxAttempts) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+
+        const statusResponse = await fetch(`${JUDGE0_API}/submissions/${token}?base64_encoded=true`);
+        result = await statusResponse.json();
+
+        // Status 1 = In Queue, 2 = Processing
+        if (result.status?.id > 2) break;
+        attempts++;
+      }
+
+      if (!result) {
+        throw new Error('Timeout waiting for result');
+      }
+
+      // Decode result
+      const decode = (str: string) => {
+        try {
+          return str ? decodeURIComponent(escape(atob(str))) : '';
+        } catch {
+          return str || '';
+        }
+      };
+
+      if (result.stdout) {
+        setOutput(decode(result.stdout));
+      } else if (result.stderr) {
+        setError(decode(result.stderr));
+      } else if (result.compile_output) {
+        setError(decode(result.compile_output));
+      } else if (result.status?.description) {
+        if (result.status.id === 3) {
+          setOutput('(No output)');
+        } else {
+          setError(result.status.description);
+        }
+      }
+    } catch (err: any) {
+      setError(`Execution failed: ${err.message}`);
+    } finally {
+      setIsRunning(false);
+    }
+  }, [editableCode, langConfig, stdin]);
+
+  const runCode = useCallback(() => {
+    // Use local Pyodide for Python (faster)
+    if (language === 'python') {
+      runPythonLocally();
+    } else {
+      runCodeRemote();
+    }
+  }, [language, runPythonLocally, runCodeRemote]);
 
   return (
     <div className={styles.container}>

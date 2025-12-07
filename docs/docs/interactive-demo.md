@@ -159,24 +159,22 @@ function Counter() {
 |----------|--------|-------|
 | Python | Local (Pyodide) | Runs in browser via WebAssembly |
 | JavaScript | Local | Live React components |
-| C++ | API | Requires Judge0 API key |
-| Go | API | Requires Judge0 API key |
-| Rust | API | Requires Judge0 API key |
-| Java | API | Requires Judge0 API key |
-| C# | API | Requires Judge0 API key |
-| Ruby | API | Requires Judge0 API key |
-| PHP | API | Requires Judge0 API key |
+| C++ | Remote (Judge0 CE) | Free public API |
+| Go | Remote (Judge0 CE) | Free public API |
+| Rust | Remote (Judge0 CE) | Free public API |
+| Java | Remote (Judge0 CE) | Free public API |
+| C# | Remote (Judge0 CE) | Free public API |
+| Ruby | Remote (Judge0 CE) | Free public API |
+| PHP | Remote (Judge0 CE) | Free public API |
 
 ---
 
-## Setup for Non-Python Languages
+## How It Works
 
-For C++, Go, Rust, Java, etc., you need a Judge0 API key:
+| Language | Execution | Notes |
+|----------|-----------|-------|
+| Python | Local (Pyodide) | Runs in browser via WebAssembly - fast! |
+| JavaScript | Local | Live React components |
+| All others | Remote (Judge0 CE) | Free public API, no key needed |
 
-1. Get a free API key from [RapidAPI Judge0](https://rapidapi.com/judge0-official/api/judge0-ce)
-2. Add it to `CodeRunner/index.tsx`:
-   ```typescript
-   const RAPIDAPI_KEY = 'your-api-key-here';
-   ```
-
-Python and JavaScript work out of the box with no configuration needed.
+All languages work out of the box with no configuration needed!
