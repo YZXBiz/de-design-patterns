@@ -5,9 +5,9 @@ import type * as Preset from '@docusaurus/preset-classic';
 // =============================================================================
 // CONFIGURE YOUR PROJECT HERE
 // =============================================================================
-const PROJECT_NAME = 'Your Guide';           // Display name
-const GITHUB_USERNAME = 'YOUR_USERNAME';      // Your GitHub username
-const REPO_NAME = 'your-repo';               // Repository name
+const PROJECT_NAME = 'Data Engineering Design Patterns';           // Display name
+const GITHUB_USERNAME = 'YZXBiz';      // Your GitHub username
+const REPO_NAME = 'docs-template';               // Repository name
 // =============================================================================
 
 const config: Config = {
