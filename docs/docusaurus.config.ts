@@ -7,7 +7,7 @@ import type * as Preset from '@docusaurus/preset-classic';
 // =============================================================================
 const PROJECT_NAME = 'Data Engineering Design Patterns';           // Display name
 const GITHUB_USERNAME = 'YZXBiz';      // Your GitHub username
-const REPO_NAME = 'docs-template';               // Repository name
+const REPO_NAME = 'de-design-patterns';               // Repository name
 // =============================================================================
 
 const config: Config = {
