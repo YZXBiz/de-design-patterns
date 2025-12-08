@@ -1,36 +1,50 @@
 import type {SidebarsConfig} from '@docusaurus/plugin-content-docs';
 
-// =============================================================================
-// CONFIGURE YOUR SIDEBAR HERE
-// =============================================================================
-// Update this structure to match your content organization
-// =============================================================================
-
 const sidebars: SidebarsConfig = {
   guideSidebar: [
     'intro',
-    'interactive-demo',
-    // Example structure - customize for your project:
-    // {
-    //   type: 'category',
-    //   label: 'Part I: Foundations',
-    //   collapsible: true,
-    //   collapsed: false,
-    //   items: [
-    //     'chapter-1-topic',
-    //     'chapter-2-topic',
-    //   ],
-    // },
-    // {
-    //   type: 'category',
-    //   label: 'Part II: Implementation',
-    //   collapsible: true,
-    //   collapsed: false,
-    //   items: [
-    //     'chapter-3-topic',
-    //     'chapter-4-topic',
-    //   ],
-    // },
+    {
+      type: 'category',
+      label: 'Part I: Data Pipeline Foundations',
+      collapsible: true,
+      collapsed: false,
+      items: [
+        'chapter1',
+        'chapter2',
+        'chapter3',
+      ],
+    },
+    {
+      type: 'category',
+      label: 'Part II: Data Reliability',
+      collapsible: true,
+      collapsed: false,
+      items: [
+        'chapter4',
+        'chapter5',
+      ],
+    },
+    {
+      type: 'category',
+      label: 'Part III: Pipeline Architecture',
+      collapsible: true,
+      collapsed: false,
+      items: [
+        'chapter6',
+        'chapter7',
+      ],
+    },
+    {
+      type: 'category',
+      label: 'Part IV: Optimization & Quality',
+      collapsible: true,
+      collapsed: false,
+      items: [
+        'chapter8',
+        'chapter9',
+        'chapter10',
+      ],
+    },
   ],
 };
 

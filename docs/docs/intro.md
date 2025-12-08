@@ -1,77 +1,92 @@
 ---
-sidebar_position: 1
+sidebar_position: 0
 title: "Introduction"
-description: "Welcome to this guide - your comprehensive resource for mastering the topic"
+description: "Data Engineering Design Patterns - A comprehensive guide to building reliable, scalable data pipelines"
 slug: /
 ---
 
-import { ProcessFlow, colors } from '@site/src/components/diagrams';
+import { CardGrid, ProcessFlow, colors } from '@site/src/components/diagrams';
 
-# Welcome
+# Data Engineering Design Patterns
 
-> **"Your inspiring quote here"**
+> **"Good design is not about decorating, it's about solving problems."**
 >
-> — Attribution
-
-Welcome to this guide — your comprehensive resource for mastering this topic.
+> — Jony Ive
 
 ---
 
-## Table of Contents
+## Welcome
 
-1. [What You'll Learn](#1-what-youll-learn)
-2. [Who This Guide Is For](#2-who-this-guide-is-for)
-3. [How to Use This Guide](#3-how-to-use-this-guide)
-4. [Prerequisites](#4-prerequisites)
+This guide provides **battle-tested design patterns** for building reliable, scalable, and maintainable data pipelines. Each pattern addresses common challenges you'll face in real-world data engineering projects.
 
 ---
 
-## 1. What You'll Learn
+## What You'll Learn
 
-**In plain English:** What this guide teaches in simple terms.
-
-**In technical terms:** The precise skills and knowledge you'll gain.
-
-**Why it matters:** How this knowledge benefits you in real-world scenarios.
-
----
-
-## 2. Who This Guide Is For
-
-This guide is designed for:
-
-| Role | What You'll Gain |
-|------|-----------------|
-| **Beginners** | Solid foundation in core concepts |
-| **Practitioners** | Practical implementation skills |
-| **Leaders** | Strategic understanding for decision-making |
-
----
-
-## 3. How to Use This Guide
-
-<ProcessFlow
-  steps={[
-    { title: "Part I", description: "Build mental models", icon: "1", color: colors.blue },
-    { title: "Part II", description: "Get hands-on", icon: "2", color: colors.purple },
-    { title: "Part III", description: "Scale your practice", icon: "3", color: colors.green }
+<CardGrid
+  columns={2}
+  cards={[
+    { title: "Data Ingestion", icon: "📥", color: colors.blue, items: ["Full & incremental loading", "Change data capture", "Compaction strategies"] },
+    { title: "Error Management", icon: "⚠️", color: colors.red, items: ["Dead-letter queues", "Deduplication", "Late data handling"] },
+    { title: "Idempotency", icon: "🔄", color: colors.green, items: ["Safe re-execution", "Merge patterns", "Transactional writes"] },
+    { title: "Data Transformations", icon: "⚙️", color: colors.purple, items: ["Sessionization", "Aggregations", "Slowly changing dimensions"] },
+    { title: "Pipeline Design", icon: "🔀", color: colors.orange, items: ["Batch vs streaming", "Orchestration", "Dependencies"] },
+    { title: "Security", icon: "🔒", color: colors.slate, items: ["Access control", "Encryption", "Anonymization"] },
+    { title: "Performance", icon: "⚡", color: colors.cyan, items: ["Partitioning", "Bucketing", "Materialization"] },
+    { title: "Data Quality", icon: "✅", color: colors.pink, items: ["Validation", "Schema evolution", "Observability"] },
   ]}
 />
 
-**If you're new:** Start from the beginning to build a solid foundation.
+---
 
-**If you're experienced:** Jump directly to the chapter most relevant to your needs.
+## Chapter Overview
+
+<ProcessFlow
+  direction="vertical"
+  steps={[
+    { title: "Chapter 1", description: "Introduction to Design Patterns", icon: "1", color: colors.blue },
+    { title: "Chapter 2", description: "Data Ingestion Patterns", icon: "2", color: colors.blue },
+    { title: "Chapter 3", description: "Error Management Patterns", icon: "3", color: colors.blue },
+    { title: "Chapter 4", description: "Idempotency Patterns", icon: "4", color: colors.green },
+    { title: "Chapter 5", description: "Data Value Patterns", icon: "5", color: colors.green },
+    { title: "Chapter 6", description: "Pipeline Patterns", icon: "6", color: colors.purple },
+    { title: "Chapter 7", description: "Security Patterns", icon: "7", color: colors.purple },
+    { title: "Chapter 8", description: "Performance Patterns", icon: "8", color: colors.orange },
+    { title: "Chapter 9", description: "Data Quality Patterns", icon: "9", color: colors.orange },
+    { title: "Chapter 10", description: "Observability Patterns", icon: "10", color: colors.orange },
+  ]}
+/>
 
 ---
 
-## 4. Prerequisites
+## Who This Guide Is For
 
-To get the most from this guide:
-
-- Basic understanding of the domain
-- Familiarity with relevant tools
-- Access to a development environment
+| Role | What You'll Gain |
+|------|-----------------|
+| **Data Engineers** | Production-ready patterns for pipelines |
+| **Software Engineers** | Data engineering best practices |
+| **Architects** | Design principles for data platforms |
+| **Tech Leads** | Solutions to common data challenges |
 
 ---
 
-**Ready to begin?** Add your chapters and start learning!
+## How to Use This Guide
+
+Each pattern follows a consistent structure:
+
+| Section | Description |
+|---------|-------------|
+| **Problem** | The challenge you're facing |
+| **Solution** | The pattern that solves it |
+| **Consequences** | Trade-offs and considerations |
+| **Examples** | Real code implementations |
+
+---
+
+## Get Started
+
+Ready to dive in? Start with [Chapter 1: Introduction to Design Patterns](./chapter1).
+
+---
+
+**Next:** [Chapter 1: Introduction to Design Patterns](./chapter1)
