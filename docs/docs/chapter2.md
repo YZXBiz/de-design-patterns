@@ -78,6 +78,26 @@ This chapter addresses scenarios and challenges you may face while integrating d
 
 ### 2.1. Pattern: Full Loader
 
+#### Quick Reference
+
+| | |
+|---|---|
+| **What it is** | Replace the entire dataset every run - no partial updates, no deltas |
+| **When to use** | ✓ Small dataset (≤1M rows) ✓ No change tracking attribute ✓ Slow change rate |
+| **Core problem** | Consistency gap between TRUNCATE and INSERT exposes partial/empty data |
+
+**Solutions at a glance:**
+
+| Approach | Use when |
+|----------|----------|
+| Transactions | DB supports atomic operations |
+| Versioned tables + view swap | Need manual control, no native versioning |
+| Delta Lake / Iceberg | Modern lakehouse stack |
+
+> 📁 **Full code**: [chapter-02/01-full-loader](https://github.com/bartosz25/data-engineering-design-patterns-book/tree/master/chapter-02/01-full-loader)
+
+---
+
 #### Problem
 
 You're setting up the Silver layer for your use case. One of the transformation jobs requires extra information about devices from an external data provider. This device dataset changes only a few times a week. It's also a very slowly evolving entity with the total number of rows not exceeding one million. Unfortunately, the data provider doesn't define any attribute that could help you detect the rows that have changed since the last ingestion.
@@ -206,6 +226,25 @@ The pipeline may require additional steps, such as retrieving the input dataset 
 **Why it matters:** Full load can be costly to implement for continuously growing datasets. Incremental load is more efficient because it processes only new data, reducing compute costs and ingestion time.
 
 ### 3.1. Pattern: Incremental Loader
+
+#### Quick Reference
+
+| | |
+|---|---|
+| **What it is** | Load only new/changed data since last run |
+| **When to use** | ✓ Continuously growing dataset ✓ Has delta indicator (timestamp/partition) ✓ Immutable or soft-delete data |
+| **Core problem** | Hard deletes break the pattern; backfilling becomes full load |
+
+**Solutions at a glance:**
+
+| Approach | Use when |
+|----------|----------|
+| Delta column + bounded window | Have `ingestion_time` or `updated_at` column |
+| Partition-based | Time-partitioned storage (implicit filtering) |
+
+> 📁 **Full code**: [chapter-02/02-incremental-loader](https://github.com/bartosz25/data-engineering-design-patterns-book/tree/master/chapter-02/02-incremental-loader)
+
+---
 
 #### Problem
 
@@ -356,6 +395,25 @@ Thanks to the filter with time boundaries, if you need to run a job execution ag
 ---
 
 ### 3.2. Pattern: Change Data Capture
+
+#### Quick Reference
+
+| | |
+|---|---|
+| **What it is** | Continuously ingest changes from database commit log |
+| **When to use** | ✓ Low latency required (&lt;30 seconds) ✓ Need to capture hard deletes ✓ Real-time sync to streaming broker |
+| **Core problem** | Complexity (ops team needed); data becomes "in motion" with different semantics |
+
+**Solutions at a glance:**
+
+| Approach | Use when |
+|----------|----------|
+| Debezium + Kafka Connect | Traditional databases (PostgreSQL, MySQL, etc.) |
+| Delta Lake CDF | Already using Delta Lake tables |
+
+> 📁 **Full code**: [chapter-02/03-change-data-capture](https://github.com/bartosz25/data-engineering-design-patterns-book/tree/master/chapter-02/03-change-data-capture)
+
+---
 
 **In plain English:** CDC is like having a camera constantly watching a database and instantly recording every change that happens - inserts, updates, and deletes - so you can replay them elsewhere in near real-time.
 
@@ -519,6 +577,25 @@ The extra columns beginning with `_` indicate how the row changed, at which vers
 
 ### 4.1. Pattern: Passthrough Replicator
 
+#### Quick Reference
+
+| | |
+|---|---|
+| **What it is** | Copy data as-is between environments without transformation |
+| **When to use** | ✓ Cross-environment replication (prod→staging) ✓ Non-idempotent data source ✓ No PII concerns |
+| **Core problem** | Security/isolation risks; must keep it simple to avoid data interference |
+
+**Solutions at a glance:**
+
+| Approach | Use when |
+|----------|----------|
+| EL job (Spark text API) | Need code-based control |
+| Infrastructure replication (S3, MirrorMaker) | Want provider-managed solution |
+
+> 📁 **Full code**: [chapter-02/04-passthrough-replicator](https://github.com/bartosz25/data-engineering-design-patterns-book/tree/master/chapter-02/04-passthrough-replicator)
+
+---
+
 #### Problem
 
 Your deployment process consists of three separate environments: development, staging, and production. Many of your jobs use a reference dataset with device parameters that you load daily on production from an external API. For a better development experience and easier bug detection, you want to have this dataset in the remaining environments.
@@ -644,6 +721,26 @@ This is an example of infrastructure-based replication where the cloud provider 
 
 ### 4.2. Pattern: Transformation Replicator
 
+#### Quick Reference
+
+| | |
+|---|---|
+| **What it is** | Replicate data with transformation to remove/anonymize sensitive attributes |
+| **When to use** | ✓ Dataset contains PII ✓ Need production data for testing ✓ Can't use passthrough |
+| **Core problem** | Risk of breaking dataset; schema desynchronization over time |
+
+**Solutions at a glance:**
+
+| Approach | Use when |
+|----------|----------|
+| EXCEPT operator / drop() | Simply removing columns |
+| Column-level access (GRANT) | Database-enforced security |
+| Mapping function | Complex row-level transformation |
+
+> 📁 **Full code**: [chapter-02/05-transformation-replicator](https://github.com/bartosz25/data-engineering-design-patterns-book/tree/master/chapter-02/05-transformation-replicator)
+
+---
+
 **In plain English:** Transformation Replicator is like making a photocopy but redacting sensitive information first - you blur out social security numbers and addresses before copying.
 
 **In technical terms:** Transformation Replicator adds a transformation layer between read and write operations to remove or anonymize sensitive attributes that shouldn't be replicated to non-production environments.
@@ -766,6 +863,26 @@ If you need to operate at the row level or if the modification rule is complex, 
 **Why it matters:** Even a perfect dataset can become a bottleneck when it grows over time due to many small files. Metadata operations can take even longer than data processing transformations, seriously impacting both latency and cost.
 
 ### 5.1. Pattern: Compactor
+
+#### Quick Reference
+
+| | |
+|---|---|
+| **What it is** | Combine multiple smaller files into bigger ones |
+| **When to use** | ✓ Small files problem (70%+ time on listing) ✓ Real-time ingestion creating many files ✓ Metadata overhead |
+| **Core problem** | Cost vs performance tradeoff; need VACUUM after to reclaim space |
+
+**Solutions at a glance:**
+
+| Approach | Use when |
+|----------|----------|
+| Delta Lake OPTIMIZE | Using Delta Lake tables |
+| Iceberg rewrite_data_files | Using Apache Iceberg |
+| Kafka log compaction | Key-based Kafka topics |
+
+> 📁 **Full code**: [chapter-02/06-compactor](https://github.com/bartosz25/data-engineering-design-patterns-book/tree/master/chapter-02/06-compactor)
+
+---
 
 #### Problem
 
@@ -910,6 +1027,26 @@ Unlike in the Delta Lake example, Kafka's compaction is nondeterministic. You ca
 
 ### 6.1. Pattern: Readiness Marker
 
+#### Quick Reference
+
+| | |
+|---|---|
+| **What it is** | Signal dataset completeness for downstream consumers |
+| **When to use** | ✓ Downstream pipelines depend on your data ✓ Cross-team data sharing ✓ Need to avoid incomplete data consumption |
+| **Core problem** | No enforcement mechanism; late data breaks partition conventions |
+
+**Solutions at a glance:**
+
+| Approach | Use when |
+|----------|----------|
+| _SUCCESS file | Raw file formats (Parquet, Avro) |
+| Next partition convention | Time-partitioned data |
+| Commit log (Delta Lake) | Using table formats with transactions |
+
+> 📁 **Full code**: [chapter-02/07-readiness-marker](https://github.com/bartosz25/data-engineering-design-patterns-book/tree/master/chapter-02/07-readiness-marker)
+
+---
+
 #### Problem
 
 Every hour, you're running a batch job that prepares data in the Silver layer of your Medallion architecture. The dataset has all known data quality issues fixed and is enriched with extra context loaded from your user's database and from an external API service. For these reasons, other teams rely on it to generate ML models and BI dashboards. But there is one big problem: they often complain about incomplete datasets, and they've asked you to implement a mechanism that will notify them - directly or indirectly - when they can start consuming your data.
@@ -1040,6 +1177,26 @@ Apache Airflow also simplifies creating a Readiness Marker file if the latter is
 **Why it matters:** When data generation is unpredictable, time-scheduled jobs waste compute resources by running even when there's nothing new to process. Event-driven approaches trigger ingestion only when needed, reducing costs and operational burden.
 
 ### 7.1. Pattern: External Trigger
+
+#### Quick Reference
+
+| | |
+|---|---|
+| **What it is** | Event-driven push-based ingestion - react to notifications |
+| **When to use** | ✓ Unpredictable data arrival ✓ Want to avoid polling/wasted compute ✓ Event-driven architecture |
+| **Core problem** | Need execution context for debugging; error management is critical |
+
+**Solutions at a glance:**
+
+| Approach | Use when |
+|----------|----------|
+| AWS Lambda + Airflow API | Serverless cloud environment |
+| Cloud Functions (GCP/Azure) | Using respective cloud providers |
+| Custom webhook handler | Self-managed infrastructure |
+
+> 📁 **Full code**: [chapter-02/08-external-trigger](https://github.com/bartosz25/data-engineering-design-patterns-book/tree/master/chapter-02/08-external-trigger)
+
+---
 
 #### Problem
 
