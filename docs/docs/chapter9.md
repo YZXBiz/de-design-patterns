@@ -102,6 +102,26 @@ In the first category, you will see how to enforce quality and thus avoid exposi
 
 ### 2.1. Pattern: Audit-Write-Audit-Publish
 
+#### Quick Reference
+
+| | |
+|---|---|
+| **What it is** | A pattern that adds controls (audit steps) to ensure that both input and output datasets meet defined business and technical requirements, such as completeness and exactness. |
+| **When to use** | ✓ Data volume drops significantly compared to historical patterns ✓ Need to validate both input data and transformation logic ✓ Want to prevent exposing poor-quality data to downstream consumers |
+| **Core problem** | Adds compute cost and may increase streaming latency, while rules coverage may not be 100% complete as datasets evolve over time. |
+
+**Solutions at a glance:**
+
+| Approach | Use when |
+|----------|----------|
+| Batch AWAP (Input → Audit → Transform → Audit → Publish) | Processing data in batch windows with clear start/end boundaries |
+| Streaming Window-Based | Need to buffer records in time windows and validate on window close |
+| Streaming Staging-Based | Want to write to staging layer and run separate audit job before promoting to final output |
+
+> 📁 **Full code**: [chapter-09/01-quality-enforcement](https://github.com/bartosz25/data-engineering-design-patterns-book/tree/master/chapter-09/01-quality-enforcement)
+
+---
+
 The first way to ensure good dataset quality is to add controls to the data flow. This approach is similar to assertions in unit tests that verify whether your code is performing correctly against an expected input.
 
 #### 🎯 Problem
@@ -392,6 +412,25 @@ write_query = (visits.writeStream
 
 ### 2.2. Pattern: Constraints Enforcer
 
+#### Quick Reference
+
+| | |
+|---|---|
+| **What it is** | A pattern that delegates responsibility for validation to the database or storage format using declarative constraint definitions that automatically reject invalid data. |
+| **When to use** | ✓ Want to avoid adding data validation complexity to your pipeline ✓ Need to fail the loading process if there are data quality errors ✓ Can define clear rules (type, nullability, value, integrity constraints) |
+| **Core problem** | All-or-nothing semantics mean if any input row fails validation, none are accepted; databases often stop at first error requiring multiple iterations to find all issues. |
+
+**Solutions at a glance:**
+
+| Approach | Use when |
+|----------|----------|
+| Database Constraints (Type, Nullability, Value, Integrity) | Using relational databases or table formats like Delta Lake |
+| Serialization Format Constraints (Avro, Protobuf with protovalidate) | Working with event streaming or message-based architectures |
+
+> 📁 **Full code**: [chapter-09/01-quality-enforcement](https://github.com/bartosz25/data-engineering-design-patterns-book/tree/master/chapter-09/01-quality-enforcement)
+
+---
+
 The AWAP pattern validates data directly from your data processing pipeline. However, there is an easier way to create trustworthy datasets by delegating those quality controls to the database or storage format, thus relying on a more declarative approach.
 
 #### 🎯 Problem
@@ -543,6 +582,26 @@ The schema constraints you discovered with the Constraints Enforcer pattern solv
 ---
 
 ### 3.1. Pattern: Schema Compatibility Enforcer
+
+#### Quick Reference
+
+| | |
+|---|---|
+| **What it is** | A pattern that enforces schema evolution rules through external services, implicit validation, or event-driven mechanisms to prevent incompatible changes that would break downstream consumers. |
+| **When to use** | ✓ Upstream team removed fields causing your application to fail ✓ Need to prevent any schema-breaking changes ✓ Multiple consumers depend on schema stability |
+| **Core problem** | Schema management adds extra overhead to data generation as producers must validate records against the most recent schema version; schema evolution becomes harder as changes must agree with compatibility level. |
+
+**Solutions at a glance:**
+
+| Approach | Use when |
+|----------|----------|
+| External Service/Library (Schema Registry, Avro SchemaValidator) | Using Apache Kafka or need centralized schema versioning and validation |
+| Implicit with Inserts (Table constraints) | Using table file formats or relational databases with defined constraints |
+| Event Driven for DDL (PostgreSQL/SQL Server triggers) | Need fine-grained control over DDL operations like DROP/RENAME COLUMN |
+
+> 📁 **Full code**: [chapter-09/02-schema-consistency](https://github.com/bartosz25/data-engineering-design-patterns-book/tree/master/chapter-09/02-schema-consistency)
+
+---
 
 Datasets are dynamic because their values can change over time, and the Constraints Enforcer pattern validates these evolved entries against predefined rules. But schemas can also have this validation.
 
@@ -755,6 +814,26 @@ root
 
 ### 3.2. Pattern: Schema Migrator
 
+#### Quick Reference
+
+| | |
+|---|---|
+| **What it is** | A pattern that enables breaking schema changes through a grace period where both old and new schema versions coexist, allowing consumers to migrate at their own pace before the old schema is removed. |
+| **When to use** | ✓ Domain-related fields are dispersed across messages making understanding difficult ✓ Need to improve schema organization without breaking compatibility ✓ Want to rename fields or change types while giving consumers time to adapt |
+| **Core problem** | Size impact as both old and new fields coexist during grace period, increasing storage space, network transfer, and I/O costs; some data formats discourage having hundreds of fields. |
+
+**Solutions at a glance:**
+
+| Approach | Use when |
+|----------|----------|
+| Rename Migration (Add new field → Grace period → Remove old field) | Field names are wrong or difficult to understand and need improvement |
+| Type Change Migration (Add retyped field → Grace period → Remove old) | Need to organize schema better or optimize for processing (e.g., text to epoch timestamp) |
+| Removal Migration (Deprecate field → Grace period → Remove) | Have 100% guarantee no consumers use the field or can provide substitution |
+
+> 📁 **Full code**: [chapter-09/02-schema-consistency](https://github.com/bartosz25/data-engineering-design-patterns-book/tree/master/chapter-09/02-schema-consistency)
+
+---
+
 Ensuring schema correctness prevents producers from making incompatible changes and prevents consumers from being interrupted. However, one schema-related problem remains: how to keep consumers safe while giving them the ability to perform breaking schema changes, such as field type evolution and renaming?
 
 #### 🎯 Problem
@@ -916,6 +995,25 @@ Remember, datasets are dynamic. They change, and the constraint rules you define
 
 ### 4.1. Pattern: Offline Observer
 
+#### Quick Reference
+
+| | |
+|---|---|
+| **What it is** | A pattern that implements a separate data observability job that runs independently from the data generation pipeline, analyzing processed records and enhancing the monitoring layer with insights about data quality trends. |
+| **When to use** | ✓ Dataset is fully structured with business rules correctly enforced ✓ Monitoring layer shouldn't block your main pipeline ✓ Want to monitor properties like distribution of values and number of nulls per column |
+| **Core problem** | Insight may come too late since observation runs on any schedule, potentially much later than data generation; all downstream consumers could already have processed a dataset with new data quality issues. |
+
+**Solutions at a glance:**
+
+| Approach | Use when |
+|----------|----------|
+| Batch Offline Observer (Separate Airflow pipeline) | Running batch jobs with different schedules for observation vs generation |
+| Streaming Offline Observer (Separate Spark job) | Want to generate data profiles and detect lag without impacting main streaming job |
+
+> 📁 **Full code**: [chapter-09/03-quality-observation](https://github.com/bartosz25/data-engineering-design-patterns-book/tree/master/chapter-09/03-quality-observation)
+
+---
+
 Observation patterns can be organized according to their place in the data pipeline. The first type of pattern lives as a separate observation component that doesn't interfere with the data processing workflow.
 
 #### 🎯 Problem
@@ -1069,6 +1167,26 @@ def get_last_offsets_per_partition(self) -> Dict[str, int]:
 ---
 
 ### 4.2. Pattern: Online Observer
+
+#### Quick Reference
+
+| | |
+|---|---|
+| **What it is** | A pattern that integrates data observation into the data generation pipeline as an intrinsic component, producing insights immediately after data generation to enable rapid issue detection and resolution. |
+| **When to use** | ✓ Offline Observer discovered issues too late (e.g., once per week) ✓ Want to detect problems before downstream consumers do ✓ Need near-real-time visibility into data quality issues |
+| **Core problem** | Local Sequencer approach adds extra step delaying pipeline completion; Parallel Split approach risks observing partially valid dataset (e.g., database missing date time values due to format issues). |
+
+**Solutions at a glance:**
+
+| Approach | Use when |
+|----------|----------|
+| Batch Local Sequencer (Transform → Load → Observe) | Want to observe dataset exposed to consumers; accept extra delay |
+| Batch Parallel Split (Transform → [Load \|\| Observe]) | Need parallelism but observe processed (not exposed) dataset |
+| Streaming Integrated (Transform + Observe in same job) | Working with streaming pipelines; can sample dataset to mitigate observation overhead |
+
+> 📁 **Full code**: [chapter-09/03-quality-observation](https://github.com/bartosz25/data-engineering-design-patterns-book/tree/master/chapter-09/03-quality-observation)
+
+---
 
 If latency between data processing and data observation via the Offline Observer pattern is an issue, you can opt for a more real-time alternative pattern, which is the Online Observer.
 

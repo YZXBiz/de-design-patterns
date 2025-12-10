@@ -67,6 +67,25 @@ The first idempotency family covers the data removal scenario. Removing existing
 
 Metadata operations are often the fastest since they don't need to interact with the data files. Instead, they operate on a much smaller layer that describes these data files. The metadata part operates on the logical level instead of the physical one. The Fast Metadata Cleaner pattern leverages metadata to enable fast data cleaning.
 
+#### Quick Reference
+
+| | |
+|---|---|
+| **What it is** | A pattern that uses metadata operations (TRUNCATE TABLE or DROP TABLE) instead of physical DELETE operations to enable fast data cleaning. |
+| **When to use** | ✓ Working with partitioned datasets ✓ DELETE operations are too slow ✓ Databases support TRUNCATE/DROP commands |
+| **Core problem** | The pattern defines an idempotency granularity that is also a backfilling boundary—you must rerun the entire granularity period even for single-record fixes. |
+
+**Solutions at a glance:**
+
+| Approach | Use when |
+|----------|----------|
+| TRUNCATE TABLE | You want to keep the table structure and reuse it for new data |
+| DROP TABLE | You want to completely remove and recreate the table each time |
+
+> 📁 **Full code**: [chapter-04/01-overwriting](https://github.com/bartosz25/data-engineering-design-patterns-book/tree/master/chapter-04/01-overwriting)
+
+---
+
 #### Problem
 
 Your daily batch job processes between 500 GB and 1.5 TB of visits data events. To guarantee idempotency, you define two steps:
@@ -187,6 +206,26 @@ The workflow creates a weekly table suffixed with the week number retrieved from
 
 If using a metadata operation is not an option (for example, because you work on an object store that doesn't have TRUNCATE and DROP commands), you must apply a data operation. The Data Overwrite pattern provides an alternative solution.
 
+#### Quick Reference
+
+| | |
+|---|---|
+| **What it is** | A pattern that relies on native dataset replacement commands at the data layer to physically replace data files before writing new data. |
+| **When to use** | ✓ Metadata operations unavailable ✓ Working with object stores ✓ Need partition-level overwrites |
+| **Core problem** | Since there is a data operation involved, the pattern can perform poorly if the overwritten dataset is big and not partitioned—the overwrite becomes slower over time. |
+
+**Solutions at a glance:**
+
+| Approach | Use when |
+|----------|----------|
+| DELETE + INSERT | You need to selectively overwrite specific rows using WHERE clauses |
+| INSERT OVERWRITE | You want to replace the entire table or partition with a concise command |
+| Framework save mode | Using Apache Spark or Flink with configuration-driven data writers |
+
+> 📁 **Full code**: [chapter-04/01-overwriting](https://github.com/bartosz25/data-engineering-design-patterns-book/tree/master/chapter-04/01-overwriting)
+
+---
+
 #### Problem
 
 One of your batch jobs runs daily on the visits dataset stored in event time-partitioned locations in an object store. The pipeline is still missing a proper idempotency strategy because each backfilling action generates duplicated records. You've heard about the Fast Metadata Cleaner pattern, but you can't use it because of the lack of a proper metadata layer. You're looking for an alternative solution.
@@ -274,6 +313,26 @@ Removing a complete dataset to guarantee idempotency is easy. Unfortunately, som
 ### 3.1. Pattern: Merger
 
 If your dataset identity is static (no risk of modifying row identities), and your dataset only supports updates or inserts, the best approach is to merge changes with the existing dataset.
+
+#### Quick Reference
+
+| | |
+|---|---|
+| **What it is** | A pattern that uses MERGE (UPSERT) operations to combine incremental changes with existing datasets based on unique identifiers, handling inserts, updates, and soft deletes. |
+| **When to use** | ✓ Working with incremental datasets ✓ Dataset has immutable unique keys ✓ Only need to handle inserts and updates |
+| **Core problem** | The Merger pattern has a shortcoming in the context of backfilling incremental datasets—consumers may temporarily see inconsistent data during the backfill process. |
+
+**Solutions at a glance:**
+
+| Approach | Use when |
+|----------|----------|
+| MERGE with soft deletes | Your CDC stream includes delete markers (is_deleted flag) |
+| MERGE without deletes | You only receive inserts and updates, no deletions |
+| Stateful Merger | You need consistency guarantees during backfilling (see next pattern) |
+
+> 📁 **Full code**: [chapter-04/02-updates](https://github.com/bartosz25/data-engineering-design-patterns-book/tree/master/chapter-04/02-updates)
+
+---
 
 #### Problem
 
@@ -439,6 +498,26 @@ The query manages new rows with the WHEN NOT MATCHED THEN section, followed by a
 ### 3.2. Pattern: Stateful Merger
 
 The Merger pattern lacks consistency for datasets during backfillings. If consistency is important, the Stateful Merger pattern provides an alternative with data restoration capabilities.
+
+#### Quick Reference
+
+| | |
+|---|---|
+| **What it is** | An extension of the Merger pattern that adds a state table tracking dataset versions per execution time, enabling automatic restoration during backfilling scenarios. |
+| **When to use** | ✓ Need backfilling consistency guarantees ✓ Working with versioned data stores ✓ Consumers require consistent views during replays |
+| **Core problem** | The pattern requires versioned data stores (each write creates a new version), and vacuum operations can make some prior versions unavailable after retention periods expire. |
+
+**Solutions at a glance:**
+
+| Approach | Use when |
+|----------|----------|
+| State table with versioning | Your data store supports versioning (Delta Lake, Iceberg) |
+| Raw history table | Your data store doesn't support versioning (PostgreSQL, MySQL) |
+| Version subtraction logic | You have no-data operations like compaction running between merges |
+
+> 📁 **Full code**: [chapter-04/02-updates](https://github.com/bartosz25/data-engineering-design-patterns-book/tree/master/chapter-04/02-updates)
+
+---
 
 #### Problem
 
@@ -636,6 +715,26 @@ The previous patterns require extra work—adapting the orchestration layer or u
 
 The first pattern in this section uses key-based data stores and an idempotent key generation strategy. This mix results in writing data exactly once, no matter how many times you try to save a record.
 
+#### Quick Reference
+
+| | |
+|---|---|
+| **What it is** | A pattern where idempotency relies on key generation logic in the data processing side—using immutable properties ensures generating the same key for the same data across runs. |
+| **When to use** | ✓ Working with key-value data stores ✓ Have immutable attributes for key generation ✓ Can use append/ingestion time instead of event time |
+| **Core problem** | The pattern is database dependent—it works well for NoSQL stores but requires MERGE operations for relational databases and has eventual consistency with Apache Kafka's compaction. |
+
+**Solutions at a glance:**
+
+| Approach | Use when |
+|----------|----------|
+| Single immutable attribute | You have a naturally unique identifier (user_id for user activity) |
+| Composite key with append time | Event time is mutable—use broker append time for stability |
+| Timestamped file/partition names | Applying the pattern to file or partition naming (batch jobs) |
+
+> 📁 **Full code**: [chapter-04/03-database](https://github.com/bartosz25/data-engineering-design-patterns-book/tree/master/chapter-04/03-database)
+
+---
+
 #### Problem
 
 Your streaming pipeline processes visit events to generate user sessions. The logic buffers all messages for a dedicated time window per user and writes an updated session to a key-value data store. As for other pipelines, you want to make sure this one is idempotent to avoid duplicates in case a task retries.
@@ -808,6 +907,26 @@ The same solution can be implemented on top of other streaming brokers—the onl
 
 In addition to key uniqueness, transactions are another powerful database capability that can help implement idempotent data producers. Transactions provide all-or-nothing semantics, where changes are fully visible to consumers only when the writer confirms them.
 
+#### Quick Reference
+
+| | |
+|---|---|
+| **What it is** | A pattern that relies on native database transactional capacity so that in-progress but not committed changes remain invisible to downstream readers. |
+| **When to use** | ✓ Need all-or-nothing semantics ✓ Prevent partial data visibility ✓ Working with transactional data stores |
+| **Core problem** | The idempotency is limited to the transaction itself—any job restart or backfilling will rewrite data from committed transactions, and distributed processing framework support is not universal. |
+
+**Solutions at a glance:**
+
+| Approach | Use when |
+|----------|----------|
+| Declarative transactions (ELT) | Working directly with data warehouses (BigQuery, Snowflake, Redshift) |
+| Local task-based transactions | Each task writes independently—acceptable for non-retry scenarios |
+| Whole-job transactional | Need stronger guarantees—commit only when all tasks complete (Delta Lake, Iceberg) |
+
+> 📁 **Full code**: [chapter-04/03-database](https://github.com/bartosz25/data-engineering-design-patterns-book/tree/master/chapter-04/03-database)
+
+---
+
 #### Problem
 
 One of your batch jobs leverages the unused compute capacity of your cloud provider to reduce total cost of ownership (TCO). Thanks to this special runtime environment, you've managed to save 60% on infrastructure costs. However, your downstream consumers start complaining about data quality.
@@ -934,6 +1053,26 @@ So far, you've seen patterns working on mutable datasets where you can alter dat
 ### 5.1. Pattern: Proxy
 
 This pattern is inspired by one of the best-known engineering sayings: "We can solve any problem by introducing an extra level of indirection." Hence its name, the Proxy.
+
+#### Quick Reference
+
+| | |
+|---|---|
+| **What it is** | A pattern that uses an intermediate component (view, manifest, or time travel) between end users and physical storage to expose only the most recent dataset while keeping all versions immutable. |
+| **When to use** | ✓ Must keep all historical versions ✓ Need write-once semantics ✓ Consumers need simple access to latest data |
+| **Core problem** | Not all databases have view features to serve as an immutable access point—without views, using manifest files makes the reading process more cumbersome. |
+
+**Solutions at a glance:**
+
+| Approach | Use when |
+|----------|----------|
+| Timestamped tables + view | Your database supports views (data warehouses, relational DBs) |
+| Manifest file | Your data store doesn't support views—create JSON/YAML file listing current files |
+| Native versioning (time travel) | Using Delta Lake, Iceberg, or BigQuery with built-in version management |
+
+> 📁 **Full code**: [chapter-04/04-immutable-dataset](https://github.com/bartosz25/data-engineering-design-patterns-book/tree/master/chapter-04/04-immutable-dataset)
+
+---
 
 #### Problem
 

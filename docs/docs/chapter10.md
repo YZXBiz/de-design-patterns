@@ -92,6 +92,28 @@ import CodeRunner from '@site/src/components/CodeRunner';
 
 ### 2.1. Pattern: Flow Interruption Detector
 
+#### Quick Reference
+
+| | |
+|---|---|
+| **What it is** | A pattern to capture any data unavailability errors and increase trust in your data by detecting when data stops flowing to a dataset |
+| **When to use** | ✓ Streaming jobs that must receive continuous data ✓ Batch pipelines where datasets should update on schedule ✓ When you need to detect silent failures before consumers complain |
+| **Core problem** | Finding the perfect threshold for detection is difficult and can generate false positives; metadata layers may not exist or may include non-data changes |
+
+**Solutions at a glance:**
+
+| Approach | Use when |
+|----------|----------|
+| Continuous data delivery monitoring | You expect at least one record per time unit (e.g., per minute) |
+| Irregular data delivery monitoring | You expect acceptable gaps in data flow (analyze time windows) |
+| Metadata layer tracking | Your database provides modification timestamps (cheapest option) |
+| Data layer tracking | You need to add modification time columns or count rows between periods |
+| Storage layer tracking | Working with file formats and monitoring last file write times |
+
+> 📁 **Full code**: [chapter-10/01-data-detectors](https://github.com/bartosz25/data-engineering-design-patterns-book/tree/master/chapter-10/01-data-detectors)
+
+---
+
 #### Problem
 
 One of your streaming jobs synchronizes data to an object store. The synchronized dataset serves as the data source for many batch jobs managed by different teams. It ran perfectly for seven months until one day it processed input records without writing them to the object store.
@@ -310,6 +332,25 @@ push_to_gateway('localhost:9091',
 
 ### 2.2. Pattern: Skew Detector
 
+#### Quick Reference
+
+| | |
+|---|---|
+| **What it is** | A pattern that brings control over data skew by detecting when a pipeline processes significantly different data volumes in consecutive executions or when some partitions have more load than others |
+| **When to use** | ✓ Batch pipelines processing homogeneous data volumes ✓ Partitioned storage systems (Kafka, PostgreSQL) ✓ As the first Audit stage in the AWAP pattern to prevent processing incomplete datasets |
+| **Core problem** | Seasonality and business activity variations make finding the right threshold difficult; requires business knowledge and cross-department communication to avoid false positives |
+
+**Solutions at a glance:**
+
+| Approach | Use when |
+|----------|----------|
+| Window-to-window comparison | Comparing consecutive batch job executions (e.g., daily datasets) |
+| Standard deviation ratio | Calculating skew across partitions in storage (STDDEV/AVG formula) |
+
+> 📁 **Full code**: [chapter-10/01-data-detectors](https://github.com/bartosz25/data-engineering-design-patterns-book/tree/master/chapter-10/01-data-detectors)
+
+---
+
 #### Problem
 
 After implementing the Flow Interruption Detector, consumers complained again - this time about incomplete datasets. Your batch job processed correctly, but it operated on a half-empty dataset due to upstream data generation issues. You need a way to ensure you always process complete datasets.
@@ -507,6 +548,28 @@ load_to_table = PostgresOperator(...)
 
 ### 3.1. Pattern: Lag Detector
 
+#### Quick Reference
+
+| | |
+|---|---|
+| **What it is** | A pattern that measures how far a data consumer falls behind the data producer, serving as an early indicator for data quality problems like data freshness and unavailability |
+| **When to use** | ✓ Streaming jobs processing from Kafka, Delta Lake, or partitioned data stores ✓ When monitoring consumer processing pace ✓ When you need early warning for performance degradation |
+| **Core problem** | Data skew in partitions can make MAX aggregation misleading; the issue may be unbalanced data distribution during writing rather than consumer problems |
+
+**Solutions at a glance:**
+
+| Approach | Use when |
+|----------|----------|
+| Record position/offset tracking | Working with Apache Kafka topics |
+| Commit number/version tracking | Working with Delta Lake or versioned tables |
+| Partition timestamp tracking | Working with time-partitioned data stores |
+| MAX aggregation | You need to detect worst-case scenario across all partitions |
+| Percentile aggregation (P90/P95) | You want to understand overall consumer performance |
+
+> 📁 **Full code**: [chapter-10/02-time-detectors](https://github.com/bartosz25/data-engineering-design-patterns-book/tree/master/chapter-10/02-time-detectors)
+
+---
+
 #### Problem
 
 One of your streaming jobs suddenly processed 30% more data than usual. You missed the email announcing this increase, and now downstream consumers complain about slower data delivery. You've promised this is the last time - you need a scaling strategy, but first you must monitor how fast your consumer processes input data.
@@ -696,6 +759,28 @@ last_written_version = (spark_session
 
 ### 3.2. Pattern: SLA Misses Detector
 
+#### Quick Reference
+
+| | |
+|---|---|
+| **What it is** | A pattern that measures processing time and compares it to maximum allowed execution time, ensuring consumers are notified about any latency problems in your batch or streaming jobs |
+| **When to use** | ✓ Batch jobs with strict completion time requirements ✓ Streaming jobs in microbatch or windowed mode ✓ When downstream consumers depend on timely data delivery |
+| **Core problem** | Late-arriving data can break event time-based SLAs due to network issues rather than processing problems; processing time and event time SLAs measure different things and should be monitored separately |
+
+**Solutions at a glance:**
+
+| Approach | Use when |
+|----------|----------|
+| Batch job timing (end - start) | Running scheduled batch pipelines with completion deadlines |
+| Microbatch timing | Streaming frameworks support windowed/microbatch processing modes |
+| Per-record timing (write - read) | Continuous streaming without window support (aggregate with MAX or percentile) |
+| Processing time SLA | Measuring how fast the job processes data (current time based) |
+| Event time SLA | Measuring end-to-end time from generation to processing (event timestamp based) |
+
+> 📁 **Full code**: [chapter-10/02-time-detectors](https://github.com/bartosz25/data-engineering-design-patterns-book/tree/master/chapter-10/02-time-detectors)
+
+---
+
 #### Problem
 
 Your batch job is scheduled at 6:00 a.m. and must complete within 40 minutes. Downstream consumers are critical data pipelines that must generate business statistics before 8:00 a.m. You've optimized the job to respect the 40-minute SLA, but unpredictable things happen. You need an observability mechanism to notify you and consumers whenever the job takes longer than 40 minutes.
@@ -877,6 +962,26 @@ sla_query_datastream
 ---
 
 ### 4.1. Pattern: Dataset Tracker
+
+#### Quick Reference
+
+| | |
+|---|---|
+| **What it is** | A pattern that creates a family tree of datasets within your organization, making it easy to discover dependencies between datasets and teams by building a dependency graph among data containers like tables, folders, topics, and queues |
+| **When to use** | ✓ Large organizations where teams exchange datasets ✓ When you need to understand data provider chains ✓ When troubleshooting schema inconsistencies or quality issues across team boundaries |
+| **Core problem** | Fully managed solutions are often cloud-specific and limited to specific services; manual implementations require coding effort and custom input/output declarations for non-standard workflows |
+
+**Solutions at a glance:**
+
+| Approach | Use when |
+|----------|----------|
+| Fully managed (Databricks Unity Catalog, GCP Dataplex) | Using cloud services and staying within their ecosystem (automatic, zero setup) |
+| Manual - Orchestration layer extraction | Pipelines can declare inputs/outputs (e.g., Airflow with OpenLineage) |
+| Manual - Database layer extraction | Analyzing executed queries to parse table dependencies from SQL |
+
+> 📁 **Full code**: [chapter-10/03-data-lineage](https://github.com/bartosz25/data-engineering-design-patterns-book/tree/master/chapter-10/03-data-lineage)
+
+---
 
 #### Problem
 
@@ -1108,6 +1213,26 @@ spark.sql("""
 ---
 
 ### 4.2. Pattern: Fine-Grained Tracker
+
+#### Quick Reference
+
+| | |
+|---|---|
+| **What it is** | A pattern that provides column-level and row-level tracking details about data origin, helping you determine which input columns compose each output column and which job produced each row |
+| **When to use** | ✓ Denormalized tables with many columns from multiple sources ✓ When new team members need to understand column dependencies ✓ Debugging data quality issues to identify which job version produced problematic rows |
+| **Core problem** | Custom transformation functions are opaque boxes where lineage frameworks can only see inputs/outputs but not the coded logic; row-level lineage lacks standard visualization tools and requires separate query layers |
+
+**Solutions at a glance:**
+
+| Approach | Use when |
+|----------|----------|
+| Column-level - Native (Unity Catalog, Azure Purview) | Using Databricks or Azure with built-in column lineage support |
+| Column-level - Manual (OpenLineage + Spark) | Analyzing query execution plans to extract column dependencies |
+| Row-level - Data decoration | Adding job metadata (name, version, batch) as headers or columns to track which job produced each row |
+
+> 📁 **Full code**: [chapter-10/03-data-lineage](https://github.com/bartosz25/data-engineering-design-patterns-book/tree/master/chapter-10/03-data-lineage)
+
+---
 
 #### Problem
 

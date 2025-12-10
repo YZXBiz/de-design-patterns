@@ -123,6 +123,25 @@ Privacy regulations such as CCPA and GDPR define several important compliance re
 
 Smart data organization or workflow isolation can often solve even the most challenging problems. This rule applies to the first data removal pattern.
 
+#### Quick Reference
+
+| | |
+|---|---|
+| **What it is** | Vertical partitioning splits each row and writes the parts into different places based on attribute characteristics. |
+| **When to use** | ✓ New personal data removal pipeline ✓ Dataset has immutable columns repeated in records ✓ Want to reduce storage overhead and deletion costs |
+| **Core problem** | Optimizes write performance and deletion but reduces read performance as readers must join split rows. |
+
+**Solutions at a glance:**
+
+| Approach | Use when |
+|----------|----------|
+| Mutable/Immutable Split | Separate frequently changing attributes from unchanging personal data |
+| Polyglot Persistence Split | Different storage systems need different parts of the same record |
+
+> 📁 **Full code**: [chapter-07/01-personal-data-removal](https://github.com/bartosz25/data-engineering-design-patterns-book/tree/master/chapter-07/01-personal-data-removal)
+
+---
+
 #### 2.1.1. Problem
 
 You recently presented the first design doc for a new personal data removal pipeline. Your peers were enthusiastic, but some pointed out an important storage overhead. Several columns of your dataset are immutable—they never change, but they're present in each record. Examples include birthday or personal ID number.
@@ -368,6 +387,26 @@ After executing the compaction process, the user shouldn't be in the topic anymo
 
 The Vertical Partitioner pattern is great if you start a new project or have enough time and resources to migrate existing workloads. However, if you're not in one of these comfortable positions, you may need to rely on the tried and true overwriting strategy.
 
+#### Quick Reference
+
+| | |
+|---|---|
+| **What it is** | In-Place Overwriter processes the whole dataset and filters out all records representing removed users, replacing the existing data with the filtered dataset. |
+| **When to use** | ✓ Legacy system with no data organization strategy ✓ Lack of resources for refactoring ✓ Need universal solution for any storage technology |
+| **Core problem** | Requires reading all the data which incurs serious I/O overhead and is more costly than Vertical Partitioner. |
+
+**Solutions at a glance:**
+
+| Approach | Use when |
+|----------|----------|
+| Native DELETE Support | Data store supports in-place operations (Delta Lake, Iceberg) |
+| Staging Area Simulation | Using raw file formats (JSON, CSV) without native deletion |
+| Compaction Strategy | Apache Kafka topics with compaction cleanup policy enabled |
+
+> 📁 **Full code**: [chapter-07/01-personal-data-removal](https://github.com/bartosz25/data-engineering-design-patterns-book/tree/master/chapter-07/01-personal-data-removal)
+
+---
+
 #### 2.2.1. Problem
 
 You inherited a legacy system where terabytes of data are stored in time-based horizontal partitions. There is no personal data management strategy defined. Despite this legacy character, the project is still widely used within your organization and needs to comply with new privacy regulations requiring personal data removal upon user request.
@@ -556,6 +595,27 @@ Even the most efficient data removal pattern will not be enough to provide the b
 
 The first pattern fits perfectly into the classical analytical world, where you create users or groups and assign them permissions to access particular tables. As it turns out, it's possible to have finer access control than that.
 
+#### Quick Reference
+
+| | |
+|---|---|
+| **What it is** | Fine-Grained Accessor for Tables implements column-level and row-level security through GRANT operators, policy tags, masking functions, or row filters. |
+| **When to use** | ✓ Users authorized for tables but not all columns/rows ✓ Need low-level resource authorization ✓ Secure data sharing within organizations |
+| **Core problem** | Row-level and column-level security protections may be expressed as SQL functions dynamically added to queries causing query overhead. |
+
+**Solutions at a glance:**
+
+| Approach | Use when |
+|----------|----------|
+| GRANT Operator | PostgreSQL, Redshift for defining column scope |
+| Policy Tags | GCP BigQuery with Data Catalog tags on columns |
+| Data Masking Functions | Databricks, Snowflake for conditional column display |
+| Row Filters / Policies | Dynamic WHERE conditions based on user identity |
+
+> 📁 **Full code**: [chapter-07/02-access-control](https://github.com/bartosz25/data-engineering-design-patterns-book/tree/master/chapter-07/02-access-control)
+
+---
+
 #### 3.1.1. Problem
 
 After migrating your previous HDFS/Hive workloads to a cloud data warehouse, you need to implement a secure access policy. The first part is relatively easy as the new data warehouse supports classical users and group creation to manage access to tables. However, there's an extra demand from stakeholders: users, despite their authorization to access a given table, may not have permissions to read all columns and rows. You need to implement an authorization mechanism for these low-level resources as well.
@@ -723,6 +783,26 @@ The condition in DynamoDB relies on the `dynamodb:LeadingKeys` attribute, which 
 ### 3.2. Pattern: Fine-Grained Accessor for Resources
 
 The access-based pattern is great when it comes to table-based datasets. However, databases are not the only data stores used by data engineers. Many data engineers also work with other data stores that are often fully managed by their cloud provider. The next pattern applies to these cloud-based resources.
+
+#### Quick Reference
+
+| | |
+|---|---|
+| **What it is** | Fine-Grained Accessor for Resources implements least privilege through resource-based or identity-based policies controlling which actions each entity can perform on specific cloud resources. |
+| **When to use** | ✓ Overly broad permissions detected ✓ Need to implement least privilege principle ✓ Working with cloud-managed resources |
+| **Core problem** | Least privilege principle can lead to many small access policy definitions that will be difficult to maintain in complex environments. |
+
+**Solutions at a glance:**
+
+| Approach | Use when |
+|----------|----------|
+| Resource-Based Access | Define access scope at resource level (GCS buckets with IAM policies) |
+| Identity-Based Access | Define permissions at identity level (AWS IAM roles for services) |
+| Tag-Based Access | Use custom metadata attributes for granular runtime conditions |
+
+> 📁 **Full code**: [chapter-07/02-access-control](https://github.com/bartosz25/data-engineering-design-patterns-book/tree/master/chapter-07/02-access-control)
+
+---
 
 #### 3.2.1. Problem
 
@@ -942,6 +1022,26 @@ You might be thinking that controlling data access at the logical level—meanin
 
 Even though you run your infrastructure on the cloud, the data is still physically stored somewhere, and unauthorized people may try to read it. If you need to reduce the access risk, you can first implement access policies, and then make sure the data will be unusable if access controls get compromised.
 
+#### Quick Reference
+
+| | |
+|---|---|
+| **What it is** | Encryptor encrypts stored data with client-side or server-side approaches and secures network communications with TLS/SSL protocols. |
+| **When to use** | ✓ Need to secure data at rest and in transit ✓ Worried about physical data theft or network interception ✓ Want defense in depth protection |
+| **Core problem** | Each writing and reading request puts extra pressure on CPU for encryption/decryption overhead. |
+
+**Solutions at a glance:**
+
+| Approach | Use when |
+|----------|----------|
+| Server-Side Encryption | Cloud providers manage encryption with KMS/Key Vault |
+| Client-Side Encryption | Producer manages encryption keys before sending to storage |
+| Data in Transit (TLS) | Enable secure communication between clients and data stores |
+
+> 📁 **Full code**: [chapter-07/03-data-protection](https://github.com/bartosz25/data-engineering-design-patterns-book/tree/master/chapter-07/03-data-protection)
+
+---
+
 #### 4.1.1. Problem
 
 After implementing fine-grained access policies for both your tables and cloud resources, you're tasked with enforcing the security of your data at rest and in transit. Your stakeholders are worried that an unauthorized person could intercept the data transferred between your streaming brokers and jobs, or that the same person could physically steal your data from the servers.
@@ -1128,6 +1228,26 @@ resource "azurerm_eventhub_namespace" "visits" {
 
 As you saw in Chapter 6, you can improve the value of a dataset if you share it with other pipelines. However, it's not always that simple. If your dataset contains PII attributes and the user hasn't agreed to share those details with your partners, you will need to perform a special preparation step before sharing the dataset.
 
+#### Quick Reference
+
+| | |
+|---|---|
+| **What it is** | Anonymizer removes or alters sensitive attributes to transform each row into anonymous information so that data consumers cannot identify users. |
+| **When to use** | ✓ Sharing dataset with third parties ✓ Users didn't agree to share PII with partners ✓ Need to comply with privacy regulations |
+| **Core problem** | When you remove or replace information your dataset becomes something new causing information loss for analysts and data scientists. |
+
+**Solutions at a glance:**
+
+| Approach | Use when |
+|----------|----------|
+| Data Removal | Simplest implementation - remove sensitive columns entirely |
+| Data Perturbation | Add noise to values to alter original meaning |
+| Synthetic Data Replacement | ML-generated values that maintain type but change value |
+
+> 📁 **Full code**: [chapter-07/03-data-protection](https://github.com/bartosz25/data-engineering-design-patterns-book/tree/master/chapter-07/03-data-protection)
+
+---
+
 #### 4.2.1. Problem
 
 Your organization contracted an external data analytics company to analyze your customers' behavior and optimize your communication strategy. Since the dataset contains many PII attributes and some of your users didn't agree to share them with third parties, your data engineering team was tasked to write a pipeline to make the shared dataset compliant with privacy regulations.
@@ -1256,6 +1376,27 @@ As a result, the output dataset doesn't contain the birthday column and has the 
 ### 4.3. Pattern: Pseudo-Anonymizer
 
 The Anonymizer pattern offers strong data protection. However, the pattern's impact on data science and data analytics pipelines can be very bad because of missing or altered values. The Pseudo-Anonymizer pattern reduces this impact.
+
+#### Quick Reference
+
+| | |
+|---|---|
+| **What it is** | Pseudo-Anonymizer replaces sensitive data with related but non-identifying values through data masking, tokenization, hashing, or encryption. |
+| **When to use** | ✓ Need to hide real PII values but keep business meaning ✓ Data consumers require more usable form than full anonymization ✓ Want to balance utility and privacy |
+| **Core problem** | Pseudo-anonymized PII data can become identifiable if combined with other datasets providing weaker security guarantee than full anonymization. |
+
+**Solutions at a glance:**
+
+| Approach | Use when |
+|----------|----------|
+| Data Masking | Replace with meaningless characters (XXX-XX-1040) |
+| Data Tokenization | Fictive values with mapping stored in secure token vault |
+| Hashing | Irreversible replacement with SHA-256 or similar algorithms |
+| Encryption | Reversible with encryption keys for authorized users |
+
+> 📁 **Full code**: [chapter-07/03-data-protection](https://github.com/bartosz25/data-engineering-design-patterns-book/tree/master/chapter-07/03-data-protection)
+
+---
 
 #### 4.3.1. Problem
 
@@ -1439,6 +1580,26 @@ So far, you have learned how to protect your data. Although this is the core par
 
 The login/password authentication method is still probably the most commonly used to access databases. It's simple but also dangerous if used without precautions, and the pattern presented next is one of the precautions you can apply.
 
+#### Quick Reference
+
+| | |
+|---|---|
+| **What it is** | Secrets Pointer leverages secrets manager services to store sensitive values centrally where consumers reference secrets by name rather than value. |
+| **When to use** | ✓ Want to avoid storing credentials in code or Git ✓ Need centralized credential management ✓ Require access monitoring and rotation capability |
+| **Core problem** | If you cache credentials you'll never know whether you're using the most up-to-date ones which may lead to connection issues. |
+
+**Solutions at a glance:**
+
+| Approach | Use when |
+|----------|----------|
+| AWS Secrets Manager | Using AWS cloud services for secret storage |
+| Google Cloud Secret Manager | Using GCP cloud services for secret storage |
+| Azure Key Vault | Using Azure cloud services for secret storage |
+
+> 📁 **Full code**: [chapter-07/04-connectivity](https://github.com/bartosz25/data-engineering-design-patterns-book/tree/master/chapter-07/04-connectivity)
+
+---
+
 #### 5.1.1. Problem
 
 The visits real-time processing pipeline from our use case leverages an external API to enrich each event with geolocation information. This API is provided by an external company, and the only authentication method is a login/password pair.
@@ -1533,6 +1694,25 @@ Although the connection configuration still references the user and password, th
 ### 5.2. Pattern: Secretless Connector
 
 The Secrets Pointer pattern shows how to secure credentials, but what if I told you that it's even better to not have any credentials to manage? That is what the next pattern makes possible.
+
+#### Quick Reference
+
+| | |
+|---|---|
+| **What it is** | Secretless Connector eliminates credential management through IAM-based identity verification or certificate-based authentication. |
+| **When to use** | ✓ Working with cloud services ✓ Want to avoid managing API keys ✓ Need access without credentials in code |
+| **Core problem** | Although there are no credentials involved there is still work to configure the entity to leverage credentialless access. |
+
+**Solutions at a glance:**
+
+| Approach | Use when |
+|----------|----------|
+| IAM-Based Access | Cloud services validate permissions through identity services |
+| Certificate-Based Authentication | Certificate authority validates certificates during connection |
+
+> 📁 **Full code**: [chapter-07/04-connectivity](https://github.com/bartosz25/data-engineering-design-patterns-book/tree/master/chapter-07/04-connectivity)
+
+---
 
 #### 5.2.1. Problem
 

@@ -111,6 +111,27 @@ When you define your storage layer's layout, the first question you'll need to a
 
 Among these approaches to data organization, horizontal organization is probably the most commonly used due to the simplicity of its implementation and its long-term popularity since the early days of data engineering.
 
+#### Quick Reference
+
+| | |
+|---|---|
+| **What it is** | The data ingestion process or the data store uses a partitioning attribute to save the dataset to a physically isolated storage space for each partitioning value. |
+| **When to use** | ✓ Incremental data processing that uses only a portion of the whole dataset ✓ Time-based or low-cardinality business keys ✓ Need to enable idempotent pipelines with Fast Metadata Cleaner |
+| **Core problem** | Static character of partitions creates granularity/metadata overhead with high-cardinality attributes, potential data skew, and mutability challenges. |
+
+**Solutions at a glance:**
+
+| Approach | Use when |
+|----------|----------|
+| Time-based partitioning (event time) | Processing incremental batches by date/hour |
+| Nested partitioning (time + business key) | Need multiple access patterns (e.g., date + country) |
+| Declarative partitioning (CREATE TABLE) | Data producer shouldn't know partitioning logic |
+| Dynamic partitioning (partitionBy) | Partition value needs complex computation |
+
+> 📁 **Full code**: [chapter-08/01-partitioning](https://github.com/bartosz25/data-engineering-design-patterns-book/tree/master/chapter-08/01-partitioning)
+
+---
+
 #### Problem
 
 You created a batch job that computes rolling aggregates for the previous four days. It ran fine for a few months, but when more data began arriving in your storage layer, the job's performance declined. The biggest issue you spotted is increased execution time for the filtering operation to ignore records older than four days.
@@ -344,6 +365,27 @@ As you've seen, the Horizontal Partitioner pattern processes whole rows each tim
 >
 > The Vertical Partitioner pattern presented in Chapter 7 is a specialization of vertical partitioning applied to security. The Vertical Partitioner presented in this chapter is a specialization dedicated to data storage.
 
+#### Quick Reference
+
+| | |
+|---|---|
+| **What it is** | A data processing job writes grouped attributes for each row into dedicated locations after data classification identifies related attributes. |
+| **When to use** | ✓ Attributes with different mutability (mutable vs. immutable) ✓ Need different data retention policies per attribute group ✓ Optimize storage costs by avoiding duplicate immutable data |
+| **Core problem** | Domain split makes logically related attributes harder to find, querying requires joins, and data producers must implement row division logic. |
+
+**Solutions at a glance:**
+
+| Approach | Use when |
+|----------|----------|
+| Mutable/immutable split | Have frequently changing and stable attributes |
+| Apache Spark (persist + drop/select) | Need to split row across multiple tables efficiently |
+| SQL INSERT INTO...SELECT FROM | Inserting vertically partitioned data from source |
+| CREATE TABLE AS SELECT (CTAS) | Creating new vertically partitioned table from query |
+
+> 📁 **Full code**: [chapter-08/01-partitioning](https://github.com/bartosz25/data-engineering-design-patterns-book/tree/master/chapter-08/01-partitioning)
+
+---
+
 #### Problem
 
 In one of your pipelines, you track user visits to your website. The visits dataset has two categories of attributes: mutable ones that change at each visit (such as visit time or visited page) and immutable ones that remain the same throughout the visit (like IP address). You're looking for a way to avoid duplicating the immutable information and store it only once for each visit.
@@ -462,6 +504,27 @@ Partitioning is often the first step in organizing data. But as you've seen, it'
 
 If, for whatever reason, you need to improve access to a column with high cardinality, such as a unique user ID, there is hope. Instead of colocating rows in the same storage space with partitioning, you can colocate groups of rows. That's an oversimplified definition of what the next pattern does.
 
+#### Quick Reference
+
+| | |
+|---|---|
+| **What it is** | Colocates different high-cardinality values in the same storage area using a modular hashing algorithm (hash(key) % buckets number) to group records. |
+| **When to use** | ✓ High-cardinality column frequently used in queries ✓ Need to optimize JOIN operations with identical bucketing on both sides ✓ Partitioning would create too many partitions |
+| **Core problem** | Bucketing schema is immutable; changing column or bucket size requires costly backfilling, and finding the right bucket size is challenging for future growth. |
+
+**Solutions at a glance:**
+
+| Approach | Use when |
+|----------|----------|
+| Bucket pruning | Using bucket column as predicate in queries |
+| Shuffle elimination for JOINs | Both tables bucketed identically on join key |
+| Apache Spark bucketBy | Need dynamic bucketing in data processing |
+| AWS Athena CLUSTERED BY | Working with existing bucketed data on S3 |
+
+> 📁 **Full code**: [chapter-08/02-records-organization](https://github.com/bartosz25/data-engineering-design-patterns-book/tree/master/chapter-08/02-records-organization)
+
+---
+
 #### Problem
 
 The dataset you're modeling has a business attribute that is frequently used in queries as part of the predicate. Initially, you wanted to use this attribute as a partitioning column, but its cardinality is too high. It would result in too many partitions that at some point could reach your data store metadata limits. As 80% of operations rely on this high-cardinality attribute, you still want to optimize storage, but at the moment, you don't know how.
@@ -573,6 +636,27 @@ input_dataset.write.bucketBy(50, 'user_id').saveAsTable(table_name)
 ### 3.2. Pattern: Sorter
 
 Colocating groups of records in buckets is not the only storage optimization technique. Another technique that helps eliminate data blocks that are irrelevant to queries relies on data storage order.
+
+#### Quick Reference
+
+| | |
+|---|---|
+| **What it is** | The database organizes written rows according to declared sorting columns, enabling queries to skip irrelevant data blocks using metadata information. |
+| **When to use** | ✓ Columns commonly used in sorting or filtering ✓ Need to skip irrelevant data blocks before loading ✓ Multi-column filtering with Z-order for curved sorts |
+| **Core problem** | Unsorted segments appear when writing new records, composite sort keys only work efficiently when queries reference leftmost columns, and changing sorting keys requires costly table re-sorting. |
+
+**Solutions at a glance:**
+
+| Approach | Use when |
+|----------|----------|
+| Lexicographical sort (single column) | Queries consistently filter on one column |
+| Lexicographical sort (composite) | Queries follow left-to-right column pattern |
+| Z-order sort | Need efficient multi-column filtering without order |
+| GCP BigQuery CLUSTER BY | Using cloud warehouse with automatic clustering |
+
+> 📁 **Full code**: [chapter-08/02-records-organization](https://github.com/bartosz25/data-engineering-design-patterns-book/tree/master/chapter-08/02-records-organization)
+
+---
 
 #### Problem
 
@@ -718,6 +802,27 @@ The patterns from this section extend the data organization techniques presented
 
 The first technique you can leverage to optimize reading performance uses metadata. This is one of the reasons why columnar file formats such as Apache Parquet have been viewed as disruptive changes in the data engineering field for many years.
 
+#### Quick Reference
+
+| | |
+|---|---|
+| **What it is** | Collecting and persisting statistics about stored records in a file footer or database table, enabling query engines to skip irrelevant data files before loading them. |
+| **When to use** | ✓ Queries load full dataset then filter (want to reverse order) ✓ Using columnar formats like Apache Parquet ✓ Need to reduce query execution time and cost |
+| **Core problem** | Building statistics adds overhead to writing time, and out-of-date statistics in databases may require manual refresh with ANALYZE TABLE commands. |
+
+**Solutions at a glance:**
+
+| Approach | Use when |
+|----------|----------|
+| Apache Parquet footer statistics | Using file-based storage with columnar format |
+| Table file formats (Delta/Iceberg/Hudi) | Need transaction log metadata on top of Parquet |
+| Database table statistics | Working with relational databases or warehouses |
+| Manual ANALYZE TABLE refresh | Statistics become out-of-date due to small changes |
+
+> 📁 **Full code**: [chapter-08/03-read-performance-optimization](https://github.com/bartosz25/data-engineering-design-patterns-book/tree/master/chapter-08/03-read-performance-optimization)
+
+---
+
 #### Problem
 
 You partitioned your JSON dataset horizontally by event time, hoping to reduce the execution time of batch jobs. And it worked! However, your company then hired new data analysts who are also working on the same partitioned dataset but are targeting only a small subset of rows from one partition.
@@ -836,6 +941,27 @@ Delta Lake adds an extra layer on top of the Apache Parquet metadata. This layer
 
 Costly operations pose another challenge to improving data access. If you need to write a query that involves some shuffle and CPU-intensive transformations, and if you need to run the same query over and over again, performance may suffer. Surprisingly, you could benefit from data duplication to improve data reading performance.
 
+#### Quick Reference
+
+| | |
+|---|---|
+| **What it is** | Materializing datasets by querying data with SELECT statements and combining with UNION or JOIN, then storing as a materialized view or table. |
+| **When to use** | ✓ Slow computation of results run repeatedly ✓ Need single point of access to multiple partitioned tables ✓ Complex queries with shuffle and CPU-intensive operations |
+| **Core problem** | Refresh cost impacts database resources, data access management across combined tables is challenging, and materialization trades query optimization for storage overhead. |
+
+**Solutions at a glance:**
+
+| Approach | Use when |
+|----------|----------|
+| Materialized view (auto-refresh) | Want automated refreshes (less predictable timing) |
+| Materialized view (manual refresh) | Need control over refresh timing and workload |
+| Table materialization | Need partitions/buckets/sorting optimization |
+| Incremental refresh | Insert-only workloads where historical data doesn't change |
+
+> 📁 **Full code**: [chapter-08/03-read-performance-optimization](https://github.com/bartosz25/data-engineering-design-patterns-book/tree/master/chapter-08/03-read-performance-optimization)
+
+---
+
 #### Problem
 
 You wanted to simplify the process of querying multiple partitioned tables of the same dataset to get the past three weeks of data. You created a view, but consumers weren't fully satisfied. They complained about latency, and because the view runs the underlying query each time, you can see their point. However, you want to solve this issue and provide them with a better-performing single point of data access.
@@ -941,6 +1067,27 @@ WHEN NOT MATCHED THEN INSERT (user_id, count) VALUES (input.user_id, input.visit
 ### 4.3. Pattern: Manifest
 
 The last read access performance challenge concerns data listing, which can be slow, especially for object stores with many files because this will result in many API calls. Even though you can try to mitigate this issue by parallelizing the listing operation, there is a better way.
+
+#### Quick Reference
+
+| | |
+|---|---|
+| **What it is** | Writing the list of files created within a transaction to a commit log or manifest file, allowing readers to access data files without performing listing operations. |
+| **When to use** | ✓ Repeated listing operations on object stores are slow ✓ Many different readers operate on same dataset ✓ Need idempotent data loading (e.g., Redshift COPY) |
+| **Core problem** | Adding manifest creation adds execution flow complexity, and manifests can grow really big with many small files or continuous streaming jobs. |
+
+**Solutions at a glance:**
+
+| Approach | Use when |
+|----------|----------|
+| Table file formats (auto-managed) | Using Delta Lake/Iceberg/Hudi with automatic manifests |
+| Manual manifest creation | Many readers need same file list (Fan-Out patterns) |
+| Amazon Redshift COPY manifest | Loading data idempotently into warehouse |
+| GCP Storage Transfer Service manifest | Copying files from other cloud stores to GCS |
+
+> 📁 **Full code**: [chapter-08/03-read-performance-optimization](https://github.com/bartosz25/data-engineering-design-patterns-book/tree/master/chapter-08/03-read-performance-optimization)
+
+---
 
 #### Problem
 
@@ -1060,6 +1207,27 @@ Data storage is not only about organizing storage or optimizing read performance
 ### 5.1. Pattern: Normalizer
 
 The first data representation pattern favors decoupling, which is great for keeping a dataset consistent by not duplicating the information.
+
+#### Quick Reference
+
+| | |
+|---|---|
+| **What it is** | Structuring data into multiple related tables where each piece of information is stored exactly once, following normal forms or snowflake schema design principles. |
+| **When to use** | ✓ Need to reduce data repetition and slow updates ✓ Prioritize data consistency over performance ✓ Transactional workloads with fast-paced writes |
+| **Core problem** | Favors data split into multiple places requiring costly JOIN operations in distributed environments, and archival needs for time-sensitive dimension tables. |
+
+**Solutions at a glance:**
+
+| Approach | Use when |
+|----------|----------|
+| Normal forms (1NF/2NF/3NF) | Transactional workloads requiring strong consistency |
+| Snowflake schema | Analytical workloads with normalized dimensions |
+| Broadcast mode for joins | Small dimension tables joining with large fact tables |
+| SCD techniques for archival | Need historical tracking of dimension changes |
+
+> 📁 **Full code**: [chapter-08/04-data-representation](https://github.com/bartosz25/data-engineering-design-patterns-book/tree/master/chapter-08/04-data-representation)
+
+---
 
 #### Problem
 
@@ -1265,6 +1433,27 @@ full_visit = (fact_visit
 ### 5.2. Pattern: Denormalizer
 
 Knowing that joins can be costly, a simple optimization technique is to reduce or avoid them. Unfortunately, that causes side effects that you'll learn more about in a few minutes, after discovering the next pattern.
+
+#### Quick Reference
+
+| | |
+|---|---|
+| **What it is** | Flattening values from all joined tables into a single row to eliminate joins, either as regular columns or nested structures (STRUCT types). |
+| **When to use** | ✓ Expensive queries joining many tables repeatedly ✓ Analytical workloads prioritizing read performance ✓ 80% of queries involve same table joins |
+| **Core problem** | Updates become costly as duplicated attributes require changing multiple rows, storage overhead from repeated information, and risk of becoming "trash bag" antipattern. |
+
+**Solutions at a glance:**
+
+| Approach | Use when |
+|----------|----------|
+| One Big Table (regular columns) | All attributes accessed as top-level columns |
+| Star schema (flattened dimensions) | Dimensions with subdimensions flattened into one level |
+| Nested structures (STRUCT) | Want to group related attributes in complex types |
+| Combined Normalizer + Denormalizer | Write normalized, read denormalized for consistency + speed |
+
+> 📁 **Full code**: [chapter-08/04-data-representation](https://github.com/bartosz25/data-engineering-design-patterns-book/tree/master/chapter-08/04-data-representation)
+
+---
 
 #### Problem
 

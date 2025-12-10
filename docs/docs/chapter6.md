@@ -99,6 +99,25 @@ The first category of patterns addresses the sequence of steps in data flows. Th
 
 The Local Sequencer orchestrates tasks locally, meaning within the same pipeline or data processing job.
 
+#### Quick Reference
+
+| | |
+|---|---|
+| **What it is** | A design pattern that orchestrates tasks locally (i.e., within the same pipeline or data processing job) |
+| **When to use** | ✓ Complex job needs simplification ✓ Code has grown to hundreds of lines ✓ Job fails often and must restart from beginning |
+| **Core problem** | Defining boundaries incorrectly can cause execution time to grow too much or impact other pipelines |
+
+**Solutions at a glance:**
+
+| Approach | Use when |
+|----------|----------|
+| Data orchestration layer sequencing | Tasks need independent restart capability, require paid API calls, or leverage orchestrator abstractions |
+| Data processing layer sequencing | Operations must execute as single transaction or depend on each other atomically |
+
+> 📁 **Full code**: [chapter-06/01-sequence](https://github.com/bartosz25/data-engineering-design-patterns-book/tree/master/chapter-06/01-sequence)
+
+---
+
 #### Problem
 
 You're in charge of one of the oldest jobs in your data analytics department. Over the years, the codebase has grown from dozens to hundreds of lines, and the number of transformations has increased three times. The job fails frequently, and each time it must start again from the beginning, leading to long debugging journeys.
@@ -206,6 +225,25 @@ valid_and_enriched_dataset_to_write.write...
 ### 2.2. Isolated Sequencer
 
 Pipelines implementing the Local Sequencer are often part of more complex workflows where multiple isolated workflows must collaborate to generate final insights.
+
+#### Quick Reference
+
+| | |
+|---|---|
+| **What it is** | A pattern to find a way to combine physically isolated pipelines |
+| **When to use** | ✓ Different teams own provider and consumer pipelines ✓ Organizational separation prevents merging ✓ Pipeline complexity requires splitting producer and consumer |
+| **Core problem** | The biggest challenge is to keep all the pipelines in sync, plus the pattern adds extra operational constraint |
+
+**Solutions at a glance:**
+
+| Approach | Use when |
+|----------|----------|
+| Data-based strategy (marker files) | Pipelines are loosely coupled and need room for evolution; consumer needs freedom to change |
+| Task-based strategy (direct trigger) | Pipelines are tightly coupled; provider directly controls consumer execution |
+
+> 📁 **Full code**: [chapter-06/01-sequence](https://github.com/bartosz25/data-engineering-design-patterns-book/tree/master/chapter-06/01-sequence)
+
+---
 
 #### Problem
 
@@ -364,6 +402,26 @@ The previous patterns involved sequences where steps follow each other in order.
 
 The Aligned Fan-In pattern requires all direct parent tasks to succeed before continuing.
 
+#### Quick Reference
+
+| | |
+|---|---|
+| **What it is** | A pattern that assumes all direct parent tasks must succeed before continuing |
+| **When to use** | ✓ Dataset partitioned by time/dimension needs parallel processing ✓ Want to avoid processing too much data in single job ✓ Need faster feedback loops on failures |
+| **Core problem** | Infrastructure spikes from simultaneous jobs and scheduling skew where all successful tasks wait for the slowest one |
+
+**Solutions at a glance:**
+
+| Approach | Use when |
+|----------|----------|
+| Data orchestration with dynamic tasks | Creating multiple parallel branches that merge into common task (e.g., 24 hourly jobs merging into daily) |
+| Data processing with UNION | Combining separate datasets vertically into single one for unified transformation |
+| Data processing with JOIN | Combining datasets horizontally adding extra columns with fewer rows |
+
+> 📁 **Full code**: [chapter-06/02-fan-in](https://github.com/bartosz25/data-engineering-design-patterns-book/tree/master/chapter-06/02-fan-in)
+
+---
+
 #### Problem
 
 Your pipeline generates daily aggregates of blog visits from raw visit events. However, the dataset is partitioned by hour as that organizational logic fits most use cases within your organization.
@@ -478,6 +536,26 @@ output_dataset = input_dataset_1.unionByName(input_dataset_2)
 ### 3.2. Unaligned Fan-In
 
 Sometimes requiring all parents to succeed adds latency or is semantically wrong. The Unaligned Fan-In pattern relaxes this constraint.
+
+#### Quick Reference
+
+| | |
+|---|---|
+| **What it is** | A pattern where a child task can run even when some of the parents don't succeed |
+| **When to use** | ✓ Partial dataset is acceptable when some parents fail ✓ Need to meet SLAs even with incomplete data ✓ Want fallback tasks when all parents fail |
+| **Core problem** | The pattern may decrease readability and requires communicating partial data status to consumers |
+
+**Solutions at a glance:**
+
+| Approach | Use when |
+|----------|----------|
+| Trigger on partial success | Some parents succeed and remaining failures are acceptable; produces partial dataset |
+| Trigger on all failures | All parents fail and you need fallback or error management task |
+| Completeness table companion | Need to track and communicate completeness metrics (e.g., 12 of 24 = 50% complete) |
+
+> 📁 **Full code**: [chapter-06/02-fan-in](https://github.com/bartosz25/data-engineering-design-patterns-book/tree/master/chapter-06/02-fan-in)
+
+---
 
 #### Problem
 
@@ -623,6 +701,26 @@ While fan-in patterns merge branches into a common task, fan-out patterns do the
 ### 4.1. Parallel Split
 
 In the Parallel Split pattern, one parent task is a requirement for at least two child tasks. Children can run in parallel because their logic is isolated, sharing only the common parent requirement.
+
+#### Quick Reference
+
+| | |
+|---|---|
+| **What it is** | A pattern where one parent task is a requirement for at least two child tasks that can run in parallel |
+| **When to use** | ✓ Need to write processed dataset to multiple places ✓ Running migration with old and new pipelines ✓ Multiple teams need different output formats |
+| **Core problem** | Blocked execution where triggering depends on slowest branch and hardware mismatches when branches need different compute capacity |
+
+**Solutions at a glance:**
+
+| Approach | Use when |
+|----------|----------|
+| Data orchestration DSL branching | Creating parallel branches from single common point with independent downstream tasks |
+| Data processing with persist/cache | Applying different processing logic on same input; read once and materialize to avoid redundant I/O |
+| Split with intermediary dataset | Branches require different hardware (CPU-heavy vs memory-heavy); separate into generation + parallel consumption |
+
+> 📁 **Full code**: [chapter-06/03-fan-out](https://github.com/bartosz25/data-engineering-design-patterns-book/tree/master/chapter-06/03-fan-out)
+
+---
 
 #### Problem
 
@@ -778,6 +876,27 @@ Delta Lake physically writes data only on the first run. Subsequent runs with id
 ### 4.2. Exclusive Choice
 
 The Exclusive Choice pattern also relies on a common parent, but instead of running parallel downstream tasks, it chooses only one path.
+
+#### Quick Reference
+
+| | |
+|---|---|
+| **What it is** | A pattern where there are two child tasks but only one should run at a time based on conditions |
+| **When to use** | ✓ Need version-based execution without creating new pipeline ✓ Gradual migration from old to new job ✓ A/B testing of processing logic |
+| **Core problem** | The greatest danger comes from flexibility leading to complexity factory with multiple conditions making pipelines barely readable |
+
+**Solutions at a glance:**
+
+| Approach | Use when |
+|----------|----------|
+| Orchestration layer branching | Want visible branching in pipeline graphs; use branch operators (Airflow) or if-condition activities |
+| Processing layer if-else | Simple conditions within job; be aware logic becomes hidden and hard to remember over time |
+| Metadata-based conditions | Evaluating execution date, configuration flags; fast as no dataset interaction needed |
+| Data-based conditions | Must check schema or dataset characteristics; slower but sometimes necessary |
+
+> 📁 **Full code**: [chapter-06/03-fan-out](https://github.com/bartosz25/data-engineering-design-patterns-book/tree/master/chapter-06/03-fan-out)
+
+---
 
 #### Problem
 
@@ -956,6 +1075,26 @@ So far, you've been organizing individual flows and their dependencies. At this 
 
 The data orchestrator must run each declared pipeline. The question is how? The Single Runner is the most universal pattern, but this universality comes with runtime costs.
 
+#### Quick Reference
+
+| | |
+|---|---|
+| **What it is** | A pattern that ensures there is always a single execution of a given pipeline |
+| **When to use** | ✓ Incremental processing where current run depends on previous ✓ Logic compares current day's data with previous day ✓ Sequential execution is business requirement |
+| **Core problem** | Backfilling is very slow due to sequential character and stragglers create increasingly delayed data for all downstream consumers |
+
+**Solutions at a glance:**
+
+| Approach | Use when |
+|----------|----------|
+| Configuration-driven concurrency=1 | Orchestrator supports concurrency attributes (Airflow, Azure Data Factory) |
+| Readiness Marker for previous run | Native concurrency control not available; wait for previous execution to complete |
+| Partial pipeline backfilling | Only some steps need replay (e.g., skip processing, replay only loading) |
+
+> 📁 **Full code**: [chapter-06/04-orchestration](https://github.com/bartosz25/data-engineering-design-patterns-book/tree/master/chapter-06/04-orchestration)
+
+---
+
 #### Problem
 
 In your recent project, you implemented a sessionization pipeline with the Incremental Sessionizer pattern from Chapter 5. Since it was a proof of concept, orchestration wasn't in scope. To validate sessions with business owners, you ran the job manually on demand. As the project enters the release cycle, you need to work on data orchestration.
@@ -1037,6 +1176,26 @@ Azure Data Factory pipelines support the Concurrency setting. However, unlike Ap
 ### 5.2. Concurrent Runner
 
 The backfilling and latency issues of Single Runner can be addressed by relaxing the concurrency constraint.
+
+#### Quick Reference
+
+| | |
+|---|---|
+| **What it is** | A pattern where concurrency is defined higher than 1 to allow multiple pipeline instances to run simultaneously |
+| **When to use** | ✓ Ingested datasets are independent of each other ✓ Need to accelerate backfilling ✓ Want to reduce latency for isolated workloads |
+| **Core problem** | Resource starvation in multitenant environments and shared state causing race conditions and unexpected side effects |
+
+**Solutions at a glance:**
+
+| Approach | Use when |
+|----------|----------|
+| Configuration-driven concurrency>1 | Datasets are truly independent with no shared state; orchestrator supports concurrency settings |
+| Workload management allocation | Multitenant environment needs resource protection; allocate specific capacity to user groups |
+| Task-level depends_on_past | Some tasks need previous execution success while allowing overall pipeline concurrency |
+
+> 📁 **Full code**: [chapter-06/04-orchestration](https://github.com/bartosz25/data-engineering-design-patterns-book/tree/master/chapter-06/04-orchestration)
+
+---
 
 #### Problem
 

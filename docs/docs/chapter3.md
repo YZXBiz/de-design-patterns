@@ -71,6 +71,25 @@ Data quality is a recurrent problem in data projects. Unprocessable records ofte
 
 **Why it matters:** For long-running streaming jobs, you can't afford to stop the entire pipeline because of one malformed record. This pattern keeps your data flowing while preserving problematic records for debugging.
 
+#### Quick Reference
+
+| | |
+|---|---|
+| **What it is** | A pattern that saves unprocessable records to a separate storage while allowing the pipeline to continue processing valid data |
+| **When to use** | ✓ Stream processing job failing on bad records ✓ Need to investigate errors later ✓ Can't afford pipeline downtime |
+| **Core problem** | Ignoring errors can hide fatal failures and trigger snowball backfilling effects when replaying dead-lettered records |
+
+**Solutions at a glance:**
+
+| Approach | Use when |
+|----------|----------|
+| Try-catch with side output | Custom mapping functions that may fail |
+| Error-safe transformations with validation | Using declarative functions like CONCAT that return NULL on error |
+
+> 📁 **Full code**: [chapter-03/01-unprocessable-records](https://github.com/bartosz25/data-engineering-design-patterns-book/tree/master/chapter-03/01-unprocessable-records)
+
+---
+
 #### Problem
 
 Your stream processing job writes visit events from Apache Kafka to an object store. Recently, data producers started generating unprocessable records, causing job failures. You've spent three consecutive days manually relaunching the job and altering checkpoint offsets. You need a better solution that keeps the pipeline running and allows error investigation later.
@@ -230,6 +249,25 @@ Exactly-once delivery is challenging in distributed systems. More often, you'll 
 
 **Why it matters:** Duplicated data leads to incorrect aggregations, inflated metrics, and misleading business decisions. Processing each occurrence only once ensures data accuracy.
 
+#### Quick Reference
+
+| | |
+|---|---|
+| **What it is** | A pattern that eliminates duplicate records by tracking unique identifiers within defined scopes: the entire dataset for batch or time-based windows for streaming |
+| **When to use** | ✓ At-least-once delivery causing duplicates ✓ Automatic retries from data producers ✓ Need exactly-once processing guarantee |
+| **Core problem** | Space versus time trade-off: short windows miss duplicates but use less resources; longer windows catch more duplicates but require more state storage |
+
+**Solutions at a glance:**
+
+| Approach | Use when |
+|----------|----------|
+| DISTINCT or dropDuplicates | Batch jobs processing complete datasets |
+| State store with watermark | Streaming jobs with time-bounded deduplication windows |
+
+> 📁 **Full code**: [chapter-03/02-duplicated-records](https://github.com/bartosz25/data-engineering-design-patterns-book/tree/master/chapter-03/02-duplicated-records)
+
+---
+
 > **Insight**
 >
 > **Automatic Retries Trade-off:** Exactly-once processing only works without runtime errors. Restarted jobs may reprocess already-processed records despite deduplication logic. This is an accepted trade-off between automated transient error management and deduplication.
@@ -352,6 +390,25 @@ Late-arriving data sounds innocent but has serious implications for data pipelin
 **In technical terms:** The Late Data Detector pattern uses watermarks—calculated from event time minus allowed lateness—to classify incoming records as "on time" or "late" based on when events actually occurred versus when they arrive for processing.
 
 **Why it matters:** Detecting late data is the first step to handling it properly. Without detection, late records can corrupt aggregations, break session logic, or silently disappear.
+
+#### Quick Reference
+
+| | |
+|---|---|
+| **What it is** | A pattern that uses watermarks (MAX event time - allowed lateness) to classify records as on-time or late based on event time |
+| **When to use** | ✓ Users buffer events locally before sending ✓ Network issues causing delayed delivery ✓ Need to apply dedicated strategy for late events |
+| **Core problem** | MIN strategy risks stuck-in-the-past situations; MAX strategy can aggressively drop records from slow partitions in skewed environments |
+
+**Solutions at a glance:**
+
+| Approach | Use when |
+|----------|----------|
+| MIN global aggregation | Need to follow slowest dependency and consider more data as on-time |
+| MAX global aggregation | Want to follow fastest dependency and reduce buffer size |
+
+> 📁 **Full code**: [chapter-03/03-late-data](https://github.com/bartosz25/data-engineering-design-patterns-book/tree/master/chapter-03/03-late-data)
+
+---
 
 > **Insight**
 >
@@ -479,6 +536,26 @@ visits.sink_to(kafka_sink_valid_data)
 
 **Why it matters:** When late data is valuable (like e-commerce orders), losing it isn't an option. A fixed integration window provides predictable reprocessing without complex tracking infrastructure.
 
+#### Quick Reference
+
+| | |
+|---|---|
+| **What it is** | A pattern using a fixed lookback window to reprocess predefined past partitions during each pipeline execution to integrate late data |
+| **When to use** | ✓ Fixed delay for late data ingestion ✓ Valuable data that can't be lost ✓ Want predictable reprocessing without complex tracking |
+| **Core problem** | Can waste resources on periods without late data; triggers snowball backfilling effect when downstream consumers must also replay partitions |
+
+**Solutions at a glance:**
+
+| Approach | Use when |
+|----------|----------|
+| Sequential (late data first) | Stateful pipelines needing valid history to generate current dataset |
+| Parallel (concurrent processing) | Stateless pipelines wanting to deliver current data without waiting |
+| Sequential (current data first) | Stateless pipelines prioritizing current data delivery over late data integration |
+
+> 📁 **Full code**: [chapter-03/03-late-data](https://github.com/bartosz25/data-engineering-design-patterns-book/tree/master/chapter-03/03-late-data)
+
+---
+
 #### Problem
 
 Your daily job generates statistics from referring websites. Results are approximate for 15 days (maximum allowed delay for late data). Currently, your batch only processes the current day, ignoring late data. You want to include late data integration without running 15 separate jobs daily.
@@ -582,6 +659,25 @@ backfilling_runs_generator = generate_backfilling_runs()
 **In technical terms:** The Dynamic Late Data Integrator pattern uses a state table to track partition modification times, reprocessing only partitions that actually received new late data rather than a fixed lookback window.
 
 **Why it matters:** Eliminates wasted compute on partitions without new data while extending coverage beyond fixed windows when truly needed.
+
+#### Quick Reference
+
+| | |
+|---|---|
+| **What it is** | A pattern using a state table to track partition modification times and reprocess only partitions that actually received new late data |
+| **When to use** | ✓ Need to integrate all late data beyond fixed window ✓ Want to avoid wasting resources on empty partitions ✓ Have access to partition metadata |
+| **Core problem** | Concurrency can cause duplicated runs without proper state tracking; very late data in stateful pipelines can trigger massive backfills |
+
+**Solutions at a glance:**
+
+| Approach | Use when |
+|----------|----------|
+| Single execution mode | Pipeline runs sequentially without concurrent executions |
+| Concurrent with state locking | Pipeline supports parallel runs and needs to prevent duplicate backfills |
+
+> 📁 **Full code**: [chapter-03/03-late-data](https://github.com/bartosz25/data-engineering-design-patterns-book/tree/master/chapter-03/03-late-data)
+
+---
 
 #### Problem
 
@@ -706,6 +802,25 @@ Data engineering errors aren't always technical failures—human mistakes like i
 **In technical terms:** The Filter Interceptor pattern wraps filtering conditions with counters to track exactly how many records each filter eliminates, enabling detection of aggressive or buggy filtering logic.
 
 **Why it matters:** When filter-induced data volume suddenly spikes from 15% to 90%, you need to know if it's a data issue or a software regression—and which specific filter caused it.
+
+#### Quick Reference
+
+| | |
+|---|---|
+| **What it is** | A pattern that wraps filtering conditions with counters to track exactly how many records each filter eliminates |
+| **When to use** | ✓ Sudden spike in filtered data volume ✓ Framework optimizes filters into single step ✓ Need to identify which filter is most aggressive |
+| **Core problem** | Runtime impact from counter overhead; SQL implementation is verbose and harder to maintain than programmatic API |
+
+**Solutions at a glance:**
+
+| Approach | Use when |
+|----------|----------|
+| Programmatic API with accumulators | Using frameworks like Spark with code-based filtering logic |
+| SQL with subquery and flag columns | Using declarative languages where filters are SQL expressions |
+
+> 📁 **Full code**: [chapter-03/04-filtering](https://github.com/bartosz25/data-engineering-design-patterns-book/tree/master/chapter-03/04-filtering)
+
+---
 
 #### Problem
 
@@ -836,6 +951,25 @@ Continuous data processing workflows like streaming need mechanisms to track pro
 **In technical terms:** The Checkpointer pattern persists processing progress (positions in data sources and computed state) to durable storage, enabling recovery from failures without complete reprocessing.
 
 **Why it matters:** Streaming applications work on continuously arriving events in append-only logs. Without checkpointing, any restart would reprocess all historical data—potentially days or weeks worth.
+
+#### Quick Reference
+
+| | |
+|---|---|
+| **What it is** | A pattern that persists processing progress and computed state to durable storage enabling recovery from failures without complete reprocessing |
+| **When to use** | ✓ Long-running streaming applications ✓ Need to avoid reprocessing from beginning ✓ Want to recover position after job failures |
+| **Core problem** | Delivery guarantee versus latency trade-off: more frequent checkpoints mean slower jobs but faster recovery and fewer duplicates on restart |
+
+**Solutions at a glance:**
+
+| Approach | Use when |
+|----------|----------|
+| Framework-based (Spark, Flink) | Using data processing framework with built-in checkpoint management |
+| Data store-based (Kafka, Kinesis) | Using data store SDK that persists checkpoints to its own layer |
+
+> 📁 **Full code**: [chapter-03/05-fault-tolerance](https://github.com/bartosz25/data-engineering-design-patterns-book/tree/master/chapter-03/05-fault-tolerance)
+
+---
 
 #### Problem
 

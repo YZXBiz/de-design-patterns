@@ -96,6 +96,26 @@ This chapter covers solutions to augment datasets by combining sources (Data Enr
 
 **Why it matters:** When your enrichment dataset is relatively stable (users, products, devices), static joins provide a simple, efficient way to add context without complex state management.
 
+#### Quick Reference
+
+| | |
+|---|---|
+| **What it is** | A pattern that combines datasets by joining streaming or batch data with at-rest reference datasets using key-based conditions. |
+| **When to use** | ✓ Enrichment dataset has static or slowly changing nature ✓ Need to add user, product, or device context to events ✓ Works for both batch and streaming pipelines |
+| **Core problem** | Late data and consistency—users may evolve at different pace than events are produced, and idempotency challenges arise when backfilling or replaying processing logic. |
+
+**Solutions at a glance:**
+
+| Approach | Use when |
+|----------|----------|
+| SQL JOIN with keyed conditions | Standard enrichment with stable reference data |
+| SCD Type 2 (validity dates) | Time-sensitive enrichment requiring historical context |
+| Materialized API datasets | Need idempotency guarantees for external API data |
+
+> 📁 **Full code**: [chapter-05/01-data-enrichment](https://github.com/bartosz25/data-engineering-design-patterns-book/tree/master/chapter-05/01-data-enrichment)
+
+---
+
 #### Problem
 
 Your team's datasets are extensively used by business stakeholders. For a new project, you need to create a dataset that simplifies understanding the dependency between user registration dates and daily activity.
@@ -318,6 +338,26 @@ The code buffers records, and once the buffer reaches the threshold, makes an AP
 
 **Why it matters:** When both datasets are in motion with different latencies, static joins produce too many misses. Dynamic joins use buffering strategies to align temporal semantics and maximize matching.
 
+#### Quick Reference
+
+| | |
+|---|---|
+| **What it is** | A pattern that combines two streaming datasets using time-bounded buffers and watermarks to handle latency differences between data sources. |
+| **When to use** | ✓ Both datasets are streaming and in motion ✓ Enrichment dataset has different latency than primary dataset ✓ Need to maximize join success rate despite timing differences |
+| **Core problem** | Space versus exactness trade-off—increasing buffer space improves join success but costs more hardware resources; reducing space optimizes storage but may miss joins if latency difference is too big. |
+
+**Solutions at a glance:**
+
+| Approach | Use when |
+|----------|----------|
+| Time-bounded buffers with watermarks | Standard streaming joins with different latencies |
+| Temporal table joins (Flink) | More managed approach for streaming data sources |
+| GC watermark configuration | Balance between buffer size and late data tolerance |
+
+> 📁 **Full code**: [chapter-05/01-data-enrichment](https://github.com/bartosz25/data-engineering-design-patterns-book/tree/master/chapter-05/01-data-enrichment)
+
+---
+
 #### Problem
 
 Even though you've implemented the Static Joiner for users-to-visits, you're still not satisfied. With thousands of new users weekly, profile changes have increased. The enriched dataset is becoming irrelevant and problematic for downstream consumers.
@@ -486,6 +526,26 @@ Once a dataset has gained increased value through enrichment, the next question 
 **In technical terms:** The Wrapper pattern adds an extra abstraction layer at the record level, wrapping original values with a high-level envelope that includes both raw attributes and computed fields from the input data or execution context.
 
 **Why it matters:** When downstream consumers need both original data for debugging and computed values for processing, wrapping maintains this dual nature without losing either perspective.
+
+#### Quick Reference
+
+| | |
+|---|---|
+| **What it is** | A pattern that adds an extra abstraction layer at the record level, wrapping original values with a high-level envelope that includes computed attributes. |
+| **When to use** | ✓ Need to separate computed values from original ones ✓ Must keep original structure for debugging ✓ Want to simplify downstream processing logic |
+| **Core problem** | Domain split and size impact—pattern divides attributes for a given domain into raw and computed structures, making data retrieval more complicated and impacting overall size and network traffic. |
+
+**Solutions at a glance:**
+
+| Approach | Use when |
+|----------|----------|
+| Flat raw + nested computed (or vice versa) | Denormalized approach for faster reading |
+| All columns flat at same level | Need logical isolation without changing original structure |
+| Separate tables joined by unique key | Cannot change original structure or need complete separation |
+
+> 📁 **Full code**: [chapter-05/02-data-decoration](https://github.com/bartosz25/data-engineering-design-patterns-book/tree/master/chapter-05/02-data-decoration)
+
+---
 
 #### Problem
 
@@ -656,6 +716,26 @@ Finally, you can also have a table with all computed columns at the same level a
 **In technical terms:** The Metadata Decorator pattern stores technical context (job version, processing time, execution metadata) in the metadata layer of your data store rather than in the record payload, keeping it hidden from end users while available for technical debugging.
 
 **Why it matters:** Technical context is valuable for maintenance but irrelevant to business users. Hiding it in metadata prevents confusion while maintaining debugging capabilities.
+
+#### Quick Reference
+
+| | |
+|---|---|
+| **What it is** | A pattern that stores technical context in the metadata layer of your data store rather than in the record payload, keeping it hidden from end users. |
+| **When to use** | ✓ Need to track job version, processing time, or execution metadata ✓ Technical context should not be exposed to business users ✓ Want to maintain debugging capabilities without confusing consumers |
+| **Core problem** | Implementation challenges—data store support for metadata handling is the biggest limitation; streaming brokers may lack native metadata support, and table datasets often require extra columns or tables. |
+
+**Solutions at a glance:**
+
+| Approach | Use when |
+|----------|----------|
+| Native metadata (Kafka headers, S3 tags) | Data store supports metadata out of the box |
+| Hidden columns with views or permissions | Relational/NoSQL databases without native metadata support |
+| Separate technical table (restricted access) | Need normalized metadata without duplication per row |
+
+> 📁 **Full code**: [chapter-05/02-data-decoration](https://github.com/bartosz25/data-engineering-design-patterns-book/tree/master/chapter-05/02-data-decoration)
+
+---
 
 #### Problem
 
@@ -854,6 +934,26 @@ So far, you've been "adding" information. But can you imagine that removing it i
 
 **Why it matters:** When datasets exceed single-machine capacity, distributed aggregation enables processing at scale by dividing work across multiple servers that collectively handle volumes no individual node could manage.
 
+#### Quick Reference
+
+| | |
+|---|---|
+| **What it is** | A pattern that leverages distributed data processing frameworks to combine multiple physically isolated but logically similar items across a cluster using group-by and reduce operations. |
+| **When to use** | ✓ Datasets exceed single-machine capacity ✓ Related records split across multiple physical places ✓ Need to build OLAP cubes or analytics aggregates |
+| **Core problem** | Additional network exchange and data skew—pattern involves shuffle step to exchange records across the network (latency troublemaker), and unbalanced datasets with skewed keys increase processing cost on single nodes. |
+
+**Solutions at a glance:**
+
+| Approach | Use when |
+|----------|----------|
+| Standard group-by with shuffle | Related records across multiple machines need combining |
+| Partial aggregation before shuffle | Aggregation supports partial generation (e.g., count, sum) |
+| Salting for skewed keys | At least one key has way more occurrences than others |
+
+> 📁 **Full code**: [chapter-05/03-data-combination](https://github.com/bartosz25/data-engineering-design-patterns-book/tree/master/chapter-05/03-data-combination)
+
+---
+
 #### Problem
 
 You've written a job that cleans raw visit events from the Bronze layer and writes them to the Silver layer. From there, many consumers implement various final business use cases.
@@ -1051,6 +1151,26 @@ To enable this combination, declare the GCS objects to be an external table and 
 **In technical terms:** The Local Aggregator pattern performs aggregations without network shuffle by leveraging pre-partitioned data sources where all records for a given grouping key are already collocated in the same physical partition.
 
 **Why it matters:** When data is correctly partitioned and static, local aggregation eliminates costly shuffle operations, significantly improving performance and reducing network overhead.
+
+#### Quick Reference
+
+| | |
+|---|---|
+| **What it is** | A pattern that performs aggregations without network shuffle by leveraging pre-partitioned data sources where all records for a given grouping key are collocated. |
+| **When to use** | ✓ Data is correctly partitioned in the input ✓ Data source partitioning is static and immutable ✓ All related records for a grouping key are in same partition |
+| **Core problem** | Scaling challenges—pattern depends on static nature of data source and consistent partitioning; changing partitions requires costly data storage reorganization and stop-the-world event for streaming applications. |
+
+**Solutions at a glance:**
+
+| Approach | Use when |
+|----------|----------|
+| Kafka Streams groupByKey() | Processing data from Apache Kafka with key-based partitioning |
+| Spark per-partition operations (mapPartitions) | Pre-partitioned datasets with same grouping key |
+| Distribution keys (Redshift KEY/ALL) | Data warehouse with collocated storage distribution |
+
+> 📁 **Full code**: [chapter-05/03-data-combination](https://github.com/bartosz25/data-engineering-design-patterns-book/tree/master/chapter-05/03-data-combination)
+
+---
 
 #### Problem
 
@@ -1281,6 +1401,26 @@ In a data engineering context, depending on the nature of your data (at rest or 
 **In technical terms:** The Incremental Sessionizer pattern generates sessions in batch pipelines by combining new input data with pending sessions from previous executions across three storage spaces: input dataset, completed sessions, and pending sessions.
 
 **Why it matters:** When data arrives in time-based partitions and sessions can span multiple partitions, incremental sessionization enables batch processing to correctly handle cross-partition session boundaries without reprocessing all historical data.
+
+#### Quick Reference
+
+| | |
+|---|---|
+| **What it is** | A pattern that generates sessions in batch pipelines by combining new input data with pending sessions from previous executions across three storage spaces. |
+| **When to use** | ✓ Data arrives in time-based partitions (hourly, daily) ✓ Sessions can span multiple partitions ✓ Batch processing is acceptable for session generation |
+| **Core problem** | Inactivity period and forward dependency—longer inactivity periods allow more late data but require more compute/storage resources; sessions are forward dependent, so backfilling one partition requires replaying all subsequent partitions. |
+
+**Solutions at a glance:**
+
+| Approach | Use when |
+|----------|----------|
+| Three storage spaces (input/completed/pending) | Standard batch sessionization with orchestrator |
+| Partial session emission with is_final flag | Users can accept partial session views for earlier insights |
+| WINDOW function or GROUP BY with custom logic | Defining initialization, accumulation, and finalization states |
+
+> 📁 **Full code**: [chapter-05/04-sessionization](https://github.com/bartosz25/data-engineering-design-patterns-book/tree/master/chapter-05/04-sessionization)
+
+---
 
 #### Problem
 
@@ -1529,6 +1669,26 @@ The first `INSERT` writes all pending sessions (sessions whose expiration time i
 **In technical terms:** The Stateful Sessionizer pattern generates sessions in streaming pipelines by maintaining in-flight session state in a state store that persists pending sessions throughout processing, enabling near-real-time session generation with event time or processing time-based expiration.
 
 **Why it matters:** When data freshness is critical and batch pipeline latency is unacceptable, stateful sessionization enables near-real-time session generation from streaming data sources with minimal delay.
+
+#### Quick Reference
+
+| | |
+|---|---|
+| **What it is** | A pattern that generates sessions in streaming pipelines by maintaining in-flight session state in a state store that persists pending sessions throughout processing. |
+| **When to use** | ✓ Data freshness is critical and batch latency unacceptable ✓ Visits available in streaming broker within seconds ✓ Need near-real-time session generation |
+| **Core problem** | At-least-once processing and scaling costs—checkpointing doesn't happen on every state update, leading to at-least-once semantics; changing compute capacity involves costly state rebalancing. |
+
+**Solutions at a glance:**
+
+| Approach | Use when |
+|----------|----------|
+| Session windows (gap duration) | Standard session with fixed inactivity period |
+| Arbitrary stateful processing | Need dynamic gap duration or complex session logic |
+| Event time-based expiration | More reliable and should be preferred in most cases |
+
+> 📁 **Full code**: [chapter-05/04-sessionization](https://github.com/bartosz25/data-engineering-design-patterns-book/tree/master/chapter-05/04-sessionization)
+
+---
 
 #### Problem
 
@@ -1858,6 +2018,26 @@ Depending on your data store, you will likely provide ordering guarantee via one
 
 **Why it matters:** When your data store has partial commit semantics (can succeed on some records while failing on others), simple bulk operations can break ordering. Bin packing maintains order guarantees while preserving bulk operation performance benefits.
 
+#### Quick Reference
+
+| | |
+|---|---|
+| **What it is** | A pattern that guarantees ordered delivery with partial commit semantics by sorting records and packing rows into delivery bins where each bin contains only one occurrence of each grouping key. |
+| **When to use** | ✓ Data store has partial commit semantics ✓ Events must be delivered in event time order ✓ Need to optimize network traffic with bulk operations |
+| **Core problem** | Retries and complexity—pattern guarantees ordering inside same execution, but whole pipeline failures break overall ordering; requires custom sorting and bin creation logic instead of simple sort function. |
+
+**Solutions at a glance:**
+
+| Approach | Use when |
+|----------|----------|
+| Sort by grouping key + time, then pack into bins | Standard approach for partial commit systems |
+| Sequential bin delivery with acknowledgment | Each bin fully written before next bin delivery starts |
+| Local sorting (sortWithinPartitions) | Optimize by avoiding network exchange during preparation |
+
+> 📁 **Full code**: [chapter-05/05-data-ordering](https://github.com/bartosz25/data-engineering-design-patterns-book/tree/master/chapter-05/05-data-ordering)
+
+---
+
 #### Problem
 
 Your blogging platform enables external websites to embed your pages. Visit events generated by these embeddings are arriving in your system, and you're processing them as your own events. Besides keeping them internally, you need to expose them from an external API to external websites for analytics purposes.
@@ -2001,6 +2181,26 @@ The code iterates all input rows and puts each into a dedicated bin, as long as 
 **In technical terms:** The FIFO Orderer pattern delivers records in first-in, first-out order by sending data individually or through bulk API with concurrency level set to 1, avoiding buffering and bulk optimizations in favor of guaranteed sequential delivery for low-volume or latency-sensitive scenarios.
 
 **Why it matters:** When delivery volume is manageable and immediate delivery is critical, FIFO Orderer provides the simplest guaranteed ordering without complex bin packing logic.
+
+#### Quick Reference
+
+| | |
+|---|---|
+| **What it is** | A pattern that delivers records in first-in, first-out order by sending data individually or through bulk API with concurrency level set to 1, avoiding buffering optimizations. |
+| **When to use** | ✓ Delivery volume is manageable and not high ✓ Immediate delivery is critical ✓ Use cases don't require low latency at scale |
+| **Core problem** | I/O overhead and latency—sends one request for each input row instead of one request for many records, leading to increased latency as data store and producer must handle requests individually. |
+
+**Solutions at a glance:**
+
+| Approach | Use when |
+|----------|----------|
+| Individual record delivery (PutRecord, send+flush) | Simplest approach for guaranteed ordering |
+| Bulk API with concurrency=1 | Data store supports full commit semantics |
+| Idempotent producer (Kafka, up to 5 concurrent) | Need better throughput while maintaining ordering |
+
+> 📁 **Full code**: [chapter-05/05-data-ordering](https://github.com/bartosz25/data-engineering-design-patterns-book/tree/master/chapter-05/05-data-ordering)
+
+---
 
 #### Problem
 
