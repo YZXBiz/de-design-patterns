@@ -94,7 +94,7 @@ This chapter addresses scenarios and challenges you may face while integrating d
 | Versioned tables + view swap | Need manual control, no native versioning |
 | Delta Lake / Iceberg | Modern lakehouse stack |
 
-> 📁 **Full code**: [chapter-02/01-full-loader](https://github.com/bartosz25/data-engineering-design-patterns-book/tree/master/chapter-02/01-full-loader)
+> 📁 **Full code**: [chapter-02/01-full-load](https://github.com/bartosz25/data-engineering-design-patterns-book/tree/master/chapter-02/01-full-load)
 
 ---
 
@@ -242,7 +242,7 @@ The pipeline may require additional steps, such as retrieving the input dataset 
 | Delta column + bounded window | Have `ingestion_time` or `updated_at` column |
 | Partition-based | Time-partitioned storage (implicit filtering) |
 
-> 📁 **Full code**: [chapter-02/02-incremental-loader](https://github.com/bartosz25/data-engineering-design-patterns-book/tree/master/chapter-02/02-incremental-loader)
+> 📁 **Full code**: [chapter-02/02-incremental-load](https://github.com/bartosz25/data-engineering-design-patterns-book/tree/master/chapter-02/02-incremental-load/01-incremental-loader-apache-airflow-apache-spark)
 
 ---
 
@@ -411,7 +411,7 @@ Thanks to the filter with time boundaries, if you need to run a job execution ag
 | Debezium + Kafka Connect | Traditional databases (PostgreSQL, MySQL, etc.) |
 | Delta Lake CDF | Already using Delta Lake tables |
 
-> 📁 **Full code**: [chapter-02/03-change-data-capture](https://github.com/bartosz25/data-engineering-design-patterns-book/tree/master/chapter-02/03-change-data-capture)
+> 📁 **Full code**: [chapter-02/02-incremental-load/02-change-data-capture](https://github.com/bartosz25/data-engineering-design-patterns-book/tree/master/chapter-02/02-incremental-load/02-change-data-capture-debezium)
 
 ---
 
@@ -592,7 +592,7 @@ The extra columns beginning with `_` indicate how the row changed, at which vers
 | EL job (Spark text API) | Need code-based control |
 | Infrastructure replication (S3, MirrorMaker) | Want provider-managed solution |
 
-> 📁 **Full code**: [chapter-02/04-passthrough-replicator](https://github.com/bartosz25/data-engineering-design-patterns-book/tree/master/chapter-02/04-passthrough-replicator)
+> 📁 **Full code**: [chapter-02/03-replication/01-passthrough-replicator](https://github.com/bartosz25/data-engineering-design-patterns-book/tree/master/chapter-02/03-replication/01-passthrough-replicator-apache-spark-apache-kafka)
 
 ---
 
@@ -737,7 +737,7 @@ This is an example of infrastructure-based replication where the cloud provider 
 | Column-level access (GRANT) | Database-enforced security |
 | Mapping function | Complex row-level transformation |
 
-> 📁 **Full code**: [chapter-02/05-transformation-replicator](https://github.com/bartosz25/data-engineering-design-patterns-book/tree/master/chapter-02/05-transformation-replicator)
+> 📁 **Full code**: [chapter-02/03-replication/02-transformation-replicator](https://github.com/bartosz25/data-engineering-design-patterns-book/tree/master/chapter-02/03-replication/02-transformation-replicator-apache-spark-delta-lake)
 
 ---
 
@@ -880,7 +880,7 @@ If you need to operate at the row level or if the modification rule is complex, 
 | Iceberg rewrite_data_files | Using Apache Iceberg |
 | Kafka log compaction | Key-based Kafka topics |
 
-> 📁 **Full code**: [chapter-02/06-compactor](https://github.com/bartosz25/data-engineering-design-patterns-book/tree/master/chapter-02/06-compactor)
+> 📁 **Full code**: [chapter-02/04-data-compaction](https://github.com/bartosz25/data-engineering-design-patterns-book/tree/master/chapter-02/04-data-compaction)
 
 ---
 
@@ -1043,7 +1043,7 @@ Unlike in the Delta Lake example, Kafka's compaction is nondeterministic. You ca
 | Next partition convention | Time-partitioned data |
 | Commit log (Delta Lake) | Using table formats with transactions |
 
-> 📁 **Full code**: [chapter-02/07-readiness-marker](https://github.com/bartosz25/data-engineering-design-patterns-book/tree/master/chapter-02/07-readiness-marker)
+> 📁 **Full code**: [chapter-02/05-data-readiness](https://github.com/bartosz25/data-engineering-design-patterns-book/tree/master/chapter-02/05-data-readiness)
 
 ---
 
@@ -1194,7 +1194,7 @@ Apache Airflow also simplifies creating a Readiness Marker file if the latter is
 | Cloud Functions (GCP/Azure) | Using respective cloud providers |
 | Custom webhook handler | Self-managed infrastructure |
 
-> 📁 **Full code**: [chapter-02/08-external-trigger](https://github.com/bartosz25/data-engineering-design-patterns-book/tree/master/chapter-02/08-external-trigger)
+> 📁 **Full code**: [chapter-02/06-event-driven/01-external-trigger](https://github.com/bartosz25/data-engineering-design-patterns-book/tree/master/chapter-02/06-event-driven/01-external-trigger-lambda-airflow)
 
 ---
 
